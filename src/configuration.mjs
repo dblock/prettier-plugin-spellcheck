@@ -1,6 +1,41 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
+export function frontMatterOptions(settings) {
+  const markdown = settings.markdown === undefined ? {} : settings.markdown;
+  if (!markdown || typeof markdown !== "object" || Array.isArray(markdown)) {
+    throw new Error("markdown must be an object.");
+  }
+  if (Object.keys(markdown).some((key) => key !== "frontMatter")) {
+    throw new Error("Unknown markdown spelling option; expected frontMatter.");
+  }
+  const value = markdown.frontMatter;
+  const config = value === undefined || value === true ? {} : value;
+  if (config === false) {
+    return false;
+  }
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new Error("markdown.frontMatter must be a boolean or an object.");
+  }
+  for (const [key, paths] of Object.entries(config)) {
+    if (
+      !["include", "exclude"].includes(key) ||
+      !Array.isArray(paths) ||
+      paths.some(
+        (path) =>
+          typeof path !== "string" ||
+          !path ||
+          path.split(".").some((part) => !part),
+      )
+    ) {
+      throw new Error(
+        "markdown.frontMatter include/exclude must be arrays of dotted field paths.",
+      );
+    }
+  }
+  return config;
+}
+
 export function loadSettings(file) {
   if (file === undefined) {
     return {};
@@ -24,9 +59,10 @@ export function loadSettings(file) {
     throw new Error(`Spelling configuration ${path} must be a JSON object.`);
   }
   for (const key of Object.keys(settings)) {
-    if (key !== "dictionaries") {
+    if (!["dictionaries", "markdown"].includes(key)) {
       throw new Error(`Unknown spelling configuration option: ${key}.`);
     }
+    frontMatterOptions(settings);
   }
   const dictionaries = settings.dictionaries;
   if (

@@ -1,5 +1,7 @@
 import { parsers } from "prettier/plugins/markdown";
 import { getDictionary, wordOnly } from "./dictionaries.mjs";
+import { frontMatterOptions } from "./configuration.mjs";
+import { frontMatterSpans } from "./front-matter.mjs";
 
 const wordPattern =
   /[\p{L}\p{M}\p{N}\p{Pc}]+(?:['’][\p{L}\p{M}\p{N}\p{Pc}]+)*/gu;
@@ -108,7 +110,7 @@ function imageLabel(text, node) {
   throw new Error("Cannot locate Markdown image description.");
 }
 
-async function markdownSpans(text) {
+async function markdownSpans(text, frontMatter) {
   const ast = await parsers.markdown.parse(text, { parser: "markdown" });
   const spans = [];
   const ignored = [];
@@ -117,7 +119,9 @@ async function markdownSpans(text) {
   async function visit(node, base = 0) {
     const start = base + node.position.start.offset;
     const end = base + node.position.end.offset;
-    if (node.type === "code" || node.type === "inlineCode") {
+    if (node.type === "frontMatter") {
+      spans.push(...frontMatterSpans(text, node, frontMatter));
+    } else if (node.type === "code" || node.type === "inlineCode") {
       code.push([start, end]);
     } else if (node.type === "text") {
       spans.push({ start, end });
@@ -245,12 +249,15 @@ export async function checkSource(
   { autocorrect = false, suggestions = true } = {},
 ) {
   const dictionary = getDictionary(settings);
-  const { spans, ignored, comments } = await markdownSpans(text);
+  const { spans, ignored, comments } = await markdownSpans(
+    text,
+    frontMatterOptions(settings),
+  );
   const offsets = lineStarts(text);
   const suppressed = suppressions(comments, offsets);
   const issues = [];
-  for (const { start, end } of spans) {
-    const raw = text.slice(start, end);
+  for (const span of spans) {
+    const raw = span.text ?? text.slice(span.start, span.end);
     const excluded = [...raw.matchAll(nonProse)].map((match) => [
       match.index,
       match.index + match[0].length,
@@ -259,13 +266,18 @@ export async function checkSource(
       const word = match[0];
       const first = match.index;
       const last = first + word.length;
-      const offset = start + first;
+      const offset = span.mapping
+        ? span.mapping[first].start
+        : span.start + first;
+      const sourceEnd = span.mapping
+        ? span.mapping[last - 1].end
+        : offset + word.length;
       const location = position(offsets, offset);
       if (
         !wordOnly.test(word) ||
         suppressed(location.line) ||
         overlaps(excluded, first, last) ||
-        overlaps(ignored, offset, offset + word.length) ||
+        overlaps(ignored, offset, sourceEnd) ||
         /&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);$/iu.test(raw.slice(0, first)) ||
         /^&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/iu.test(raw.slice(last)) ||
         dictionary.has(word)
@@ -276,16 +288,27 @@ export async function checkSource(
       const standalone =
         !/[\p{L}\p{M}\p{N}\p{Pc}](?:[.-])?$/u.test(raw.slice(0, first)) &&
         !/^(?:[.-])?[\p{L}\p{M}\p{N}\p{Pc}]/u.test(raw.slice(last));
+      let fix =
+        autocorrect &&
+        standalone &&
+        span.allowFix !== false &&
+        text.slice(offset, sourceEnd) === word
+          ? replacement(word, candidates, dictionary)
+          : undefined;
+      if (
+        fix &&
+        span.safeReplacement &&
+        !span.safeReplacement(first, word.length, fix)
+      ) {
+        fix = undefined;
+      }
       issues.push({
         word,
         offset,
-        length: word.length,
+        length: sourceEnd - offset,
         ...location,
         suggestions: candidates,
-        replacement:
-          autocorrect && standalone
-            ? replacement(word, candidates, dictionary)
-            : undefined,
+        replacement: fix,
       });
     }
   }

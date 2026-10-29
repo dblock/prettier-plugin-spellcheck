@@ -74,6 +74,30 @@ test("collect never overwrites candidates or creates output for unmatched patter
   assert.equal(existsSync(join(directory, "missing.txt")), false);
 });
 
+test("collect decodes selected YAML values instead of collecting escape fragments or keys", (t) => {
+  const { write, read, run } = fixture(t);
+  write(
+    ".prettierrc.json",
+    JSON.stringify({ spellcheckConfig: "./spelling.json" }),
+  );
+  write(
+    "spelling.json",
+    JSON.stringify({
+      markdown: { frontMatter: { include: ["title"] } },
+    }),
+  );
+  write(
+    "example.md",
+    '---\ntitle: "\\u0071zxwidget"\nqzxkey: qzxignored\n---\n',
+  );
+  const result = run("collect", "*.md");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nqzxwidget\n",
+  );
+});
+
 test("add preserves language maps and stores config-relative paths without duplicates", (t) => {
   const { write, read, run, directory } = fixture(t);
   mkdirSync(join(directory, "config"));

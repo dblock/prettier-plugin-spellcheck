@@ -84,6 +84,27 @@ npx prettier-plugin-spellcheck add ./.spellcheck.txt
 
 Use `--config path/to/spelling.json` to select an explicit spelling configuration; otherwise `collect` uses each file's `spellcheckConfig` setting. `add` defaults to `.spellcheck.json`, preserves existing settings and languages, and avoids duplicate paths. Use `--language es` to add vocabulary under another language. Remember to set `spellcheckConfig` in your Prettier configuration after creating the spelling configuration.
 
+## YAML front matter
+
+YAML front matter checking is enabled by default for string values, including nested objects and arrays. Keys, comments, numbers, and booleans are skipped. Anchored strings are checked once at their definition; aliases are not expanded.
+
+Select fields in your spelling configuration:
+
+```json
+{
+  "markdown": {
+    "frontMatter": {
+      "include": ["title", "description", "authors.name", "metadata"],
+      "exclude": ["metadata.id", "metadata.url"]
+    }
+  }
+}
+```
+
+Omitting `include` checks all string values; `include: []` checks none. Dotted paths select nested fields, including fields inside arrays without numeric indices. Selecting a parent includes its subtree, and exclusions win.
+
+Set `"markdown": { "frontMatter": false }` to skip front matter spelling. Quoted and block string values are checked but never automatically corrected. Plain values can be corrected only when the replacement remains a YAML string. Malformed YAML and invalid field selectors are errors. Non-YAML front matter is not spellchecked.
+
 ## Corrections
 
 Set `"spellcheckAutocorrect": true` in your Prettier configuration, then run:
@@ -100,7 +121,7 @@ Use `"spellcheck": false` to turn off spelling while retaining normal Markdown f
 
 ## Scope
 
-Uses Prettier's public Markdown AST and CSpell dictionaries directly. There is no runtime dependency on markdownlint or markdownlint-rule-spellcheck. Checks headings, paragraphs, lists, quotes, tables, link labels, and image descriptions. Skips code, HTML, link destinations, URLs, email addresses, and entity-encoded word fragments. YAML front matter is currently skipped.
+Uses Prettier's public Markdown AST and CSpell dictionaries directly. There is no dependency on markdownlint or markdownlint-rule-spellcheck. Checks headings, paragraphs, lists, quotes, tables, link labels, image descriptions, and YAML string values. Skips code, HTML, link destinations, URLs, email addresses, and entity-encoded word fragments.
 
 Use `<!-- spellcheck-disable -->` and `<!-- spellcheck-enable -->` to suppress spelling in a region. The `spellcheck-disable-file`, `spellcheck-disable-line`, and `spellcheck-disable-next-line` variants are also supported. Existing `<!-- markdownlint-disable spellcheck -->` comments remain compatible without loading markdownlint.
 

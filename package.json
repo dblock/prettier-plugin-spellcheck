@@ -44,7 +44,8 @@
   },
   "dependencies": {
     "@cspell/dict-en_us": "^4.4.43",
-    "cspell-dictionary": "^10.4.0"
+    "cspell-dictionary": "^10.4.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@cspell/dict-es-es": "^3.0.9",

@@ -32,16 +32,14 @@ async function collect(patterns, values) {
       continue;
     }
     const settings = loadSettings(values.config ?? config.spellcheckConfig);
-    for (const error of checkSource(readFileSync(file, "utf8"), settings, {
-      suggestions: false,
-    })) {
-      const match = /^Misspelled word: "([^"]+)"\./u.exec(error.errorDetail);
-      if (!match) {
-        throw new Error(
-          `Cannot collect spelling candidate: ${error.errorDetail}`,
-        );
-      }
-      words.add(match[1]);
+    for (const error of await checkSource(
+      readFileSync(file, "utf8"),
+      settings,
+      {
+        suggestions: false,
+      },
+    )) {
+      words.add(error.word);
     }
   }
   if (!matched) {
@@ -63,7 +61,7 @@ async function collect(patterns, values) {
   );
 }
 
-function add(files, values) {
+async function add(files, values) {
   if (files.length !== 1 || !files[0].endsWith(".txt")) {
     throw new Error(usage);
   }
@@ -72,7 +70,7 @@ function add(files, values) {
     throw new Error("add supports .json spelling configuration files only.");
   }
   const path = resolve(files[0]);
-  checkSource(
+  await checkSource(
     "",
     { dictionaries: { project: [path] } },
     { suggestions: false },
@@ -125,7 +123,7 @@ try {
     if (command === "collect" && patterns.length) {
       await collect(patterns, values);
     } else if (command === "add") {
-      add(patterns, values);
+      await add(patterns, values);
     } else {
       throw new Error(usage);
     }

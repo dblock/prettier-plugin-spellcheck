@@ -52,7 +52,7 @@ test("collect honors ignores, per-file settings, dictionaries and suppression co
   write("example.mdx", "qzxmdx\n");
   write(
     "example.md",
-    "qzxwidget helo helo\n\n`wrng`\n\n<!-- markdownlint-disable spellcheck -->\nqzxhidden\n",
+    "qzxwidget helo helo\n\n`wrng`\n\n<!-- prettier-ignore -->\n\nqzxignorednode\n\n<!-- markdownlint-disable spellcheck -->\nqzxhidden\n",
   );
   const result = run("collect", "**/*.md");
   assert.equal(result.status, 0, result.stderr);

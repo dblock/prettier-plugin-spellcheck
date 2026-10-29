@@ -1,23 +1,315 @@
-import { lint } from "markdownlint/sync";
-import rule, { createRule } from "markdownlint-rule-spellcheck";
+import { parsers } from "prettier/plugins/markdown";
+import { getDictionary, wordOnly } from "./dictionaries.mjs";
 
-const collectionRule = createRule({ suggestions: false });
+const wordPattern =
+  /[\p{L}\p{M}\p{N}\p{Pc}]+(?:['’][\p{L}\p{M}\p{N}\p{Pc}]+)*/gu;
+const nonProse =
+  /(?:https?:\/\/|mailto:|www\.)[^\s<>]+|[\p{L}\p{N}_.+-]+@[\p{L}\p{N}_.-]+/giu;
+const overlaps = (ranges, start, end) =>
+  ranges.some(([first, last]) => start < last && end > first);
+const directive = (node, name) =>
+  node.type === "html" && node.value.trim() === `<!-- ${name} -->`;
 
-export function checkSource(
+export function oneEditAway(left, right) {
+  const a = Array.from(left);
+  const b = Array.from(right);
+  if (a.length === b.length) {
+    const different = a.flatMap((letter, index) =>
+      letter === b[index] ? [] : [index],
+    );
+    return (
+      different.length === 1 ||
+      (different.length === 2 &&
+        different[1] === different[0] + 1 &&
+        a[different[0]] === b[different[1]] &&
+        a[different[1]] === b[different[0]])
+    );
+  }
+  if (Math.abs(a.length - b.length) !== 1) {
+    return false;
+  }
+  const [long, short] = a.length > b.length ? [a, b] : [b, a];
+  let skipped = false;
+  for (let i = 0, j = 0; i < long.length; i++) {
+    if (long[i] === short[j]) {
+      j++;
+    } else if (skipped) {
+      return false;
+    } else {
+      skipped = true;
+    }
+  }
+  return true;
+}
+
+function replacement(word, candidates, dictionary) {
+  const lower = word.toLowerCase();
+  const title = (text) => {
+    const [first, ...rest] = text;
+    return first.toUpperCase() + rest.join("").toLowerCase();
+  };
+  if (word !== lower && (word !== title(word) || word === word.toUpperCase())) {
+    return undefined;
+  }
+  const candidate = candidates[0]?.toLowerCase();
+  if (
+    !candidate ||
+    !wordOnly.test(candidate) ||
+    !oneEditAway(lower, candidate)
+  ) {
+    return undefined;
+  }
+  const result = word === lower ? candidate : title(candidate);
+  return dictionary.has(result) ? result : undefined;
+}
+
+function lineStarts(text) {
+  return [
+    0,
+    ...Array.from(
+      text.matchAll(/\r\n|\r|\n/gu),
+      (match) => match.index + match[0].length,
+    ),
+  ];
+}
+
+function position(offsets, offset) {
+  let low = 0;
+  let high = offsets.length;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (offsets[middle] <= offset) {
+      low = middle;
+    } else {
+      high = middle;
+    }
+  }
+  return { line: low + 1, column: offset - offsets[low] + 1 };
+}
+
+function imageLabel(text, node) {
+  const start = node.position.start.offset + 2;
+  let depth = 1;
+  for (let index = start; index < node.position.end.offset; index++) {
+    if (text[index] === "\\") {
+      index++;
+    } else if (text[index] === "`") {
+      const delimiter = /^`+/u.exec(text.slice(index))[0];
+      const closing = text.indexOf(delimiter, index + delimiter.length);
+      if (closing !== -1 && closing < node.position.end.offset) {
+        index = closing + delimiter.length - 1;
+      }
+    } else if (text[index] === "[") {
+      depth++;
+    } else if (text[index] === "]" && --depth === 0) {
+      return [start, index];
+    }
+  }
+  throw new Error("Cannot locate Markdown image description.");
+}
+
+async function markdownSpans(text) {
+  const ast = await parsers.markdown.parse(text, { parser: "markdown" });
+  const spans = [];
+  const ignored = [];
+  const code = [];
+  const comments = [];
+  async function visit(node, base = 0) {
+    const start = base + node.position.start.offset;
+    const end = base + node.position.end.offset;
+    if (node.type === "code" || node.type === "inlineCode") {
+      code.push([start, end]);
+    } else if (node.type === "text") {
+      spans.push({ start, end });
+    } else if (node.type === "html") {
+      comments.push({ text: node.value, start });
+    } else if (node.type === "image" || node.type === "imageReference") {
+      const [first, last] = imageLabel(text.slice(base), node);
+      const label = text.slice(base + first, base + last);
+      const parsed = await parsers.markdown.parse(label, {
+        parser: "markdown",
+      });
+      await visit(parsed, base + first);
+    } else {
+      const children = node.children || [];
+      for (const [index, child] of children.entries()) {
+        if (directive(child, "prettier-ignore") && children[index + 1]) {
+          const next = children[index + 1];
+          ignored.push([
+            base + next.position.start.offset,
+            base + next.position.end.offset,
+          ]);
+        }
+        await visit(child, base);
+      }
+    }
+  }
+  await visit(ast);
+  const lines = text.split(/\r\n|\r|\n/u);
+  const blankBefore = (node) =>
+    node.position.start.line === 1 ||
+    !lines[node.position.start.line - 2].trim();
+  let start;
+  for (const child of ast.children) {
+    if (directive(child, "prettier-ignore-start") && blankBefore(child)) {
+      start ??= child.position.end.offset;
+    } else if (
+      start !== undefined &&
+      directive(child, "prettier-ignore-end") &&
+      blankBefore(child)
+    ) {
+      ignored.push([start, child.position.start.offset]);
+      start = undefined;
+    }
+  }
+  let cursor = 0;
+  const opener = /\{\{|\{%/gu;
+  while (cursor < text.length) {
+    opener.lastIndex = cursor;
+    const match = opener.exec(text);
+    if (!match) {
+      break;
+    }
+    const containingCode = code.find(
+      ([first, last]) => match.index >= first && match.index < last,
+    );
+    if (containingCode) {
+      cursor = containingCode[1];
+      continue;
+    }
+    const closing = text.indexOf(
+      match[0] === "{{" ? "}}" : "%}",
+      match.index + 2,
+    );
+    if (closing === -1) {
+      cursor = match.index + 2;
+    } else {
+      ignored.push([match.index, closing + 2]);
+      cursor = closing + 2;
+    }
+  }
+  return { spans, ignored, comments };
+}
+
+function suppressions(comments, offsets) {
+  const events = [];
+  const lines = new Set();
+  let fileDisabled = false;
+  for (const comment of comments) {
+    const pattern =
+      /<!--\s*(markdownlint|spellcheck)-(disable|enable)(-file|-line|-next-line)?(?:\s+([\s\S]*?))?\s*-->/gu;
+    for (const match of comment.text.matchAll(pattern)) {
+      const names = (match[4] || "").trim().split(/\s+/u).filter(Boolean);
+      if (
+        names.length &&
+        !names.includes("spellcheck") &&
+        !names.includes("spelling")
+      ) {
+        continue;
+      }
+      const line = position(offsets, comment.start + match.index).line;
+      const disabled = match[2] === "disable";
+      if (match[3] === "-file") {
+        fileDisabled = disabled;
+      } else if (match[3] === "-line" || match[3] === "-next-line") {
+        const target = line + (match[3] === "-next-line" ? 1 : 0);
+        if (disabled) {
+          lines.add(target);
+        } else {
+          lines.delete(target);
+        }
+      } else {
+        events.push({ line, disabled });
+      }
+    }
+  }
+  events.sort((left, right) => left.line - right.line);
+  return (line) => {
+    let disabled = fileDisabled || lines.has(line);
+    if (disabled) {
+      return true;
+    }
+    for (const event of events) {
+      if (event.line > line) {
+        break;
+      }
+      disabled = event.disabled;
+    }
+    return disabled;
+  };
+}
+
+export async function checkSource(
   text,
   settings = {},
   { autocorrect = false, suggestions = true } = {},
 ) {
-  return lint({
-    strings: { source: text },
-    customRules: [suggestions ? rule : collectionRule],
-    config: {
-      default: false,
-      spellcheck: {
-        ...settings,
-        autocorrect,
-        markdown: { frontMatter: false },
-      },
-    },
-  }).source;
+  const dictionary = getDictionary(settings);
+  const { spans, ignored, comments } = await markdownSpans(text);
+  const offsets = lineStarts(text);
+  const suppressed = suppressions(comments, offsets);
+  const issues = [];
+  for (const { start, end } of spans) {
+    const raw = text.slice(start, end);
+    const excluded = [...raw.matchAll(nonProse)].map((match) => [
+      match.index,
+      match.index + match[0].length,
+    ]);
+    for (const match of raw.matchAll(wordPattern)) {
+      const word = match[0];
+      const first = match.index;
+      const last = first + word.length;
+      const offset = start + first;
+      const location = position(offsets, offset);
+      if (
+        !wordOnly.test(word) ||
+        suppressed(location.line) ||
+        overlaps(excluded, first, last) ||
+        overlaps(ignored, offset, offset + word.length) ||
+        /&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);$/iu.test(raw.slice(0, first)) ||
+        /^&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/iu.test(raw.slice(last)) ||
+        dictionary.has(word)
+      ) {
+        continue;
+      }
+      const candidates = suggestions ? dictionary.suggest(word) : [];
+      const standalone =
+        !/[\p{L}\p{M}\p{N}\p{Pc}](?:[.-])?$/u.test(raw.slice(0, first)) &&
+        !/^(?:[.-])?[\p{L}\p{M}\p{N}\p{Pc}]/u.test(raw.slice(last));
+      issues.push({
+        word,
+        offset,
+        length: word.length,
+        ...location,
+        suggestions: candidates,
+        replacement:
+          autocorrect && standalone
+            ? replacement(word, candidates, dictionary)
+            : undefined,
+      });
+    }
+  }
+  return issues.sort((left, right) => left.offset - right.offset);
+}
+
+export function describeIssue(issue) {
+  return `Misspelled word: "${issue.word}".${
+    issue.suggestions.length
+      ? ` Suggestions: ${issue.suggestions.join(", ")}.`
+      : ""
+  }`;
+}
+
+export function applyCorrections(text, issues) {
+  for (const issue of [...issues].sort(
+    (left, right) => right.offset - left.offset,
+  )) {
+    if (issue.replacement !== undefined) {
+      text =
+        text.slice(0, issue.offset) +
+        issue.replacement +
+        text.slice(issue.offset + issue.length);
+    }
+  }
+  return text;
 }

@@ -92,7 +92,7 @@ Set `"spellcheckAutocorrect": true` in your Prettier configuration, then run:
 npx prettier --write "**/*.md"
 ```
 
-Corrections are opt-in. The underlying rule only replaces a lowercase or title-case word when the dictionary-valid first suggestion is one letter edit or transposition away. ALL CAPS, mixed case, and words inside dotted, hyphenated, or identifier-like tokens are not automatically corrected.
+Corrections are opt-in. A lowercase or title-case word is only replaced when the dictionary-valid first suggestion is one letter edit or transposition away. ALL CAPS, mixed case, and words inside dotted, hyphenated, or identifier-like tokens are not automatically corrected.
 
 If any spelling error in a file lacks an approved correction, that entire file fails without being rewritten. Other files in the same Prettier invocation may still be written. Review the diff: even conservative spelling corrections can change meaning.
 
@@ -100,9 +100,13 @@ Use `"spellcheck": false` to turn off spelling while retaining normal Markdown f
 
 ## Scope
 
-Uses [markdownlint-rule-spellcheck](https://github.com/dblock/markdownlint-rule-spellcheck) and its offline CSpell English dictionary. Checks headings, paragraphs, lists, quotes, tables, link labels, and image descriptions. Skips code, HTML, link destinations, URLs, and email addresses. YAML front matter is currently skipped.
+Uses Prettier's public Markdown AST and CSpell dictionaries directly. There is no runtime dependency on markdownlint or markdownlint-rule-spellcheck. Checks headings, paragraphs, lists, quotes, tables, link labels, and image descriptions. Skips code, HTML, link destinations, URLs, email addresses, and entity-encoded word fragments. YAML front matter is currently skipped.
 
-Markdownlint suppression comments such as `<!-- markdownlint-disable spellcheck -->` are supported. Other Markdown files and embedded code continue to use Prettier's ordinary formatting.
+Use `<!-- spellcheck-disable -->` and `<!-- spellcheck-enable -->` to suppress spelling in a region. The `spellcheck-disable-file`, `spellcheck-disable-line`, and `spellcheck-disable-next-line` variants are also supported. Existing `<!-- markdownlint-disable spellcheck -->` comments remain compatible without loading markdownlint.
+
+Prettier's `<!-- prettier-ignore -->` directive skips the next Markdown node for both spelling and formatting. Properly separated top-level `prettier-ignore-start`/`prettier-ignore-end` ranges are skipped too. Ignore-looking text inside code is not treated as a directive.
+
+Unicode words, accented letters, apostrophes, and original UTF-16 source coordinates are supported. Liquid expressions (`{{ ... }}`) and tags (`{% ... %}`), including multiline forms, are excluded from spelling checks; surrounding prose is checked. Code and MDX continue to use Prettier's ordinary formatting.
 
 The plugin wraps Prettier's built-in `markdown` parser. Plugins that also replace that parser are not automatically composable; load order alone does not guarantee both transformations run.
 

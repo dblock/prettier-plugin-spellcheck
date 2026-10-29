@@ -1,0 +1,120 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import * as prettier from "prettier";
+import * as plugin from "../src/index.mjs";
+import { checkSource, oneEditAway } from "../src/spelling.mjs";
+
+const format = (source, options = {}) =>
+  prettier.format(source, {
+    parser: "markdown",
+    plugins: [plugin],
+    spellcheckAutocorrect: true,
+    ...options,
+  });
+
+test("preserves Unicode and UTF-16 fix positions with CRLF and inline markup", async () => {
+  const source = "# 😀 café **helo**\r\n\r\n> \thelo\r\n";
+  assert.equal(
+    await format(source, { endOfLine: "crlf" }),
+    "# 😀 café **hello**\r\n\r\n> hello\r\n",
+  );
+  await assert.rejects(
+    format("😀 xqzvvv\n"),
+    /<markdown>:1:4 Misspelled word: "xqzvvv"/u,
+  );
+});
+
+test("leaves Liquid contents alone while correcting surrounding prose", async () => {
+  const source = "{{ wrng.qzx }} helo\n\n{% assign qzx = 'wrng' %}\n\nhelo\n";
+  assert.equal(
+    await format(source),
+    await prettier.format(source.replaceAll("helo", "hello"), {
+      parser: "markdown",
+    }),
+  );
+});
+
+test("supports native spelling directives and markdownlint compatibility comments", async () => {
+  for (const prefix of ["spellcheck", "markdownlint"]) {
+    const source = `<!-- ${prefix}-disable spellcheck -->\n\nqzxignored\n\n<!-- ${prefix}-enable spellcheck -->\n\n#  helo\n`;
+    assert.equal(await format(source), source.replace("#  helo", "# hello"));
+  }
+  assert.equal(
+    (await checkSource("qzxignored <!-- spellcheck-disable-line -->\n")).length,
+    0,
+  );
+  assert.equal(
+    (await checkSource("<!-- spellcheck-disable-next-line -->\nqzxignored\n"))
+      .length,
+    0,
+  );
+});
+
+test("does not check or correct the node following prettier-ignore", async () => {
+  const source = "<!-- prettier-ignore -->\n\nhelo   qzxignored\n\nhelo\n";
+  const result = await format(source);
+  assert.equal(
+    result,
+    "<!-- prettier-ignore -->\nhelo   qzxignored\n\nhello\n",
+  );
+  assert.equal(await format(result), result);
+});
+
+test("honors top-level ignore ranges without treating code as directives", async () => {
+  const source =
+    "Hello\n\n<!-- prettier-ignore-start -->\n\nhelo   qzxignored\n\n<!-- prettier-ignore-end -->\n\n`<!-- prettier-ignore -->`\n\nhelo\n";
+  assert.equal(await format(source), source.replace("\nhelo\n", "\nhello\n"));
+});
+
+test("checks image descriptions without changing destinations or inline code", async () => {
+  const source = "![helo **world** `wrng`](wrng.png)\n\n[helo](wrng.md)\n";
+  assert.equal(
+    await format(source),
+    "![hello **world** `wrng`](wrng.png)\n\n[hello](wrng.md)\n",
+  );
+});
+
+test("skips entity fragments, emails and whole identifier-like tokens", async () => {
+  const source =
+    "he&#108;o person@wrng.invalid wrong_token sha256 can't2stop\n";
+  assert.deepEqual(await checkSource(source), []);
+  const issues = await checkSource("😀 helo helo\n");
+  assert.deepEqual(
+    issues.map(({ offset, line, column }) => ({ offset, line, column })),
+    [
+      { offset: 3, line: 1, column: 4 },
+      { offset: 8, line: 1, column: 9 },
+    ],
+  );
+});
+
+test("limits corrections to exactly one edit or adjacent transposition", () => {
+  for (const [left, right] of [
+    ["helo", "hello"],
+    ["helllo", "hello"],
+    ["hallo", "hello"],
+    ["hlelo", "hello"],
+  ]) {
+    assert.equal(oneEditAway(left, right), true);
+  }
+  for (const [left, right] of [
+    ["hello", "hello"],
+    ["hello", "world"],
+    ["helo", "helping"],
+    ["ab", "cd"],
+  ]) {
+    assert.equal(oneEditAway(left, right), false);
+  }
+});
+
+test("does not override JavaScript or MDX parsers", async () => {
+  for (const [parser, source] of [
+    ["babel", 'const helo="wrng";'],
+    ["mdx", "# helo\n"],
+  ]) {
+    assert.equal(
+      await format(source, { parser }),
+      await prettier.format(source, { parser }),
+    );
+  }
+});

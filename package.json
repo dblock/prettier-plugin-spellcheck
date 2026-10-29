@@ -43,8 +43,8 @@
     "prettier": ">=3.7.0 <4"
   },
   "dependencies": {
-    "markdownlint": "^0.42.0",
-    "markdownlint-rule-spellcheck": "^0.2.0"
+    "@cspell/dict-en_us": "^4.4.43",
+    "cspell-dictionary": "^10.4.0"
   },
   "devDependencies": {
     "@cspell/dict-es-es": "^3.0.9",

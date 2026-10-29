@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/test.yml/badge.svg)](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/test.yml) [![Lint](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/lint.yml/badge.svg)](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/lint.yml) [![Coverage](https://coveralls.io/repos/github/dblock/prettier-plugin-spellcheck/badge.svg?branch=main)](https://coveralls.io/github/dblock/prettier-plugin-spellcheck?branch=main)
 
-Markdown, HTML, plain-text, and JavaScript/TypeScript spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell.
+Markdown, HTML, plain-text, and JavaScript/TypeScript spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell. Inspired by [markdownlint-rule-spellcheck](https://github.com/dblock/markdownlint-rule-spellcheck) and [dylint-spellcheck](https://github.com/dblock/dylint-spellcheck).
 
 Requires Node.js 22.18 or later and Prettier 3.7 or later (3.x).
 

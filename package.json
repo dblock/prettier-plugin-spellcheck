@@ -1,0 +1,36 @@
+{
+  "name": "prettier-plugin-spellcheck",
+  "version": "0.1.0",
+  "description": "Markdown spelling checks and opt-in autocorrection for Prettier, powered by CSpell.",
+  "type": "module",
+  "main": "src/index.mjs",
+  "exports": "./src/index.mjs",
+  "files": ["src/", "README.md", "CHANGELOG.md", "LICENSE"],
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": ["prettier", "prettier-plugin", "markdown", "spellcheck", "cspell"],
+  "author": "Daniel Doubrovkine",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dblock/prettier-plugin-spellcheck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dblock/prettier-plugin-spellcheck/issues"
+  },
+  "homepage": "https://github.com/dblock/prettier-plugin-spellcheck#readme",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "peerDependencies": {
+    "prettier": ">=3.7.0 <4"
+  },
+  "dependencies": {
+    "markdownlint": "^0.42.0",
+    "markdownlint-rule-spellcheck": "^0.2.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
+}

@@ -9,6 +9,7 @@ import { checkSource } from "./spelling.mjs";
 import { getDictionary } from "./dictionaries.mjs";
 import { addDictionary } from "./update-config.mjs";
 import { loadSettings } from "./configuration.mjs";
+import { codeParsers } from "./code.mjs";
 
 const usage = `Usage: prettier-plugin-spellcheck collect <globs...> [--output .spellcheck.txt] [--config prettier.config.mjs]
        prettier-plugin-spellcheck add <dictionary.txt> [--config prettier.config.mjs]`;
@@ -37,7 +38,8 @@ async function collect(patterns, values) {
         editorconfig: true,
         ...(values.config ? { config: resolve(values.config) } : {}),
       })) || {};
-    if ((config.parser ?? info.inferredParser) !== "markdown") {
+    const parser = config.parser ?? info.inferredParser;
+    if (parser !== "markdown" && !Object.hasOwn(codeParsers, parser)) {
       continue;
     }
     matched++;
@@ -45,6 +47,9 @@ async function collect(patterns, values) {
       readFileSync(file, "utf8"),
       loadSettings(config),
       {
+        ...config,
+        parser,
+        filepath: resolve(file),
         suggestions: false,
       },
     )) {
@@ -53,7 +58,7 @@ async function collect(patterns, values) {
   }
   if (!matched) {
     throw new Error(
-      "No non-ignored Markdown files matched the supplied patterns.",
+      "No non-ignored Markdown or supported code files matched the supplied patterns.",
     );
   }
   writeFileSync(

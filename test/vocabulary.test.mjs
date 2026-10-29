@@ -77,7 +77,10 @@ test("collect never overwrites candidates or creates output for unmatched patter
   assert.equal(read(".spellcheck.txt"), "keep me\n");
   const result = run("collect", "missing/*.md", "--output", "missing.txt");
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /No non-ignored Markdown files/u);
+  assert.match(
+    result.stderr,
+    /No non-ignored Markdown or supported code files/u,
+  );
   assert.equal(existsSync(join(directory, "missing.txt")), false);
 });
 
@@ -234,6 +237,7 @@ test("add updates an explicit external JSON config without changing the Prettier
   const prettierConfig = JSON.stringify({
     spellcheckConfig: "./config/spelling.json",
   });
+
   write(".prettierrc.json", prettierConfig);
   write(
     "config/spelling.json",
@@ -260,5 +264,24 @@ test("add updates an explicit external JSON config without changing the Prettier
   assert.equal(
     read(".spellcheck.txt"),
     "# Review these candidates: remove typos before using this dictionary.\nhelo\n",
+  );
+});
+
+test("collect checks code prose and configured strings and identifiers using each file's parser", (t) => {
+  const { write, read, run } = fixture(t);
+  write(
+    "spellcheck.json",
+    JSON.stringify({
+      code: { strings: true, identifiers: true },
+    }),
+  );
+  write("example.ts", 'const heloValue: string = "mispelled"; // helo\n');
+  write("ignored.ts", "// qzxignored\n");
+  write(".prettierignore", "ignored.ts\n");
+  const result = run("collect", "*.{md,js,jsx,ts,tsx}");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nhelo\nmispelled\n",
   );
 });

@@ -42,7 +42,11 @@ function insertProperty(source, object, value) {
 }
 
 async function writeConfiguration(file, original, source, options, parser) {
-  const result = await format(source, { ...options, parser });
+  const result = await format(source, {
+    ...options,
+    parser,
+    spellcheck: false,
+  });
   if (original !== undefined && readFileSync(file, "utf8") !== original) {
     throw new Error(
       "Spelling configuration changed while adding the dictionary; no changes written.",

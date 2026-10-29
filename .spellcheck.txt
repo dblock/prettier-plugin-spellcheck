@@ -1,8 +1,12 @@
 # Project vocabulary.
 Autocorrection
 CLI
+JSX
 Prettier's
+TSDoc
+TSX
 UTF
 autocorrection
 js
 md
+rubocop

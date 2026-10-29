@@ -2,11 +2,12 @@ import { parsers } from "prettier/plugins/markdown";
 import { getDictionary, wordOnly } from "./dictionaries.mjs";
 import { spellingSettings } from "./configuration.mjs";
 import { frontMatterSpans } from "./front-matter.mjs";
+import { codeParsers, codeSpans } from "./code.mjs";
 
 const wordPattern =
   /[\p{L}\p{M}\p{N}\p{Pc}]+(?:['’][\p{L}\p{M}\p{N}\p{Pc}]+)*/gu;
 const nonProse =
-  /(?:https?:\/\/|mailto:|www\.)[^\s<>]+|[\p{L}\p{N}_.+-]+@[\p{L}\p{N}_.-]+/giu;
+  /(?:https?:\/\/|mailto:|www\.)[^\s<>]+|[\p{L}\p{N}_.+-]+@[\p{L}\p{N}_.-]+|&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/giu;
 const overlaps = (ranges, start, end) =>
   ranges.some(([first, last]) => start < last && end > first);
 const directive = (node, name) =>
@@ -201,7 +202,9 @@ function suppressions(comments, offsets) {
   let fileDisabled = false;
   for (const comment of comments) {
     const pattern =
-      /<!--\s*(markdownlint|spellcheck)-(disable|enable)(-file|-line|-next-line)?(?:\s+([\s\S]*?))?\s*-->/gu;
+      comment.syntax === "code"
+        ? /\b(spellcheck)-(disable|enable)(-file|-line|-next-line)?(?:[ \t]+([^\r\n]*?))?[ \t]*$/gmu
+        : /<!--\s*(markdownlint|spellcheck)-(disable|enable)(-file|-line|-next-line)?(?:\s+([\s\S]*?))?\s*-->/gu;
     for (const match of comment.text.matchAll(pattern)) {
       const names = (match[4] || "").trim().split(/\s+/u).filter(Boolean);
       if (
@@ -246,21 +249,48 @@ function suppressions(comments, offsets) {
 export async function checkSource(
   text,
   config = {},
-  { suggestions = true } = {},
+  { suggestions = true, parser = "markdown", ...parserOptions } = {},
 ) {
   if (text.startsWith("\uFEFF")) {
-    const issues = await checkSource(text.slice(1), config, { suggestions });
+    const issues = await checkSource(text.slice(1), config, {
+      suggestions,
+      parser,
+      ...parserOptions,
+    });
     return issues.map((issue) => ({ ...issue, offset: issue.offset + 1 }));
   }
   const settings = spellingSettings(config);
   if (!settings.enabled) {
     return [];
   }
+  if (parser !== "markdown" && !Object.hasOwn(codeParsers, parser)) {
+    throw new Error(`Unsupported spelling parser: ${parser}.`);
+  }
   const dictionary = getDictionary(settings.dictionaries);
-  const { spans, ignored, comments } = await markdownSpans(
-    text,
-    settings.frontMatter,
-  );
+  const context = Object.hasOwn(codeParsers, parser)
+    ? await codeSpans(text, parser, parserOptions, settings.code)
+    : await markdownSpans(text, settings.frontMatter);
+  const { spans, ignored, comments } = context;
+  for (const source of context.prose || []) {
+    const parsed = await markdownSpans(source.text, false);
+    for (const span of parsed.spans) {
+      spans.push({
+        ...span,
+        text: source.text.slice(span.start, span.end),
+        mapping: source.mapping.slice(span.start, span.end),
+      });
+    }
+    for (const [start, end] of parsed.ignored) {
+      if (end > start)
+        ignored.push([
+          source.mapping[start].start,
+          source.mapping[end - 1].end,
+        ]);
+    }
+    for (const comment of parsed.comments) {
+      comments.push({ ...comment, start: source.mapping[comment.start].start });
+    }
+  }
   const offsets = lineStarts(text);
   const suppressed = suppressions(comments, offsets);
   const issues = [];

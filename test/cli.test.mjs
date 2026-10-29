@@ -11,10 +11,10 @@ const prettierBin = fileURLToPath(
 );
 const pluginURL = new URL("../src/index.mjs", import.meta.url).href;
 
-function fixture(t, source, options = {}) {
+function fixture(t, source, options = {}, filename = "example.md") {
   const directory = mkdtempSync(join(tmpdir(), "prettier-spellcheck-test-"));
   t.after(() => rmSync(directory, { recursive: true }));
-  const file = join(directory, "example.md");
+  const file = join(directory, filename);
   writeFileSync(file, source);
   if (options !== null) {
     writeFileSync(
@@ -32,7 +32,7 @@ function fixture(t, source, options = {}) {
           prettierBin,
           ...(options === null ? ["--plugin", fileURLToPath(pluginURL)] : []),
           ...args,
-          "example.md",
+          filename,
         ],
         {
           cwd: directory,
@@ -182,4 +182,46 @@ test("Prettier overrides can switch between inline and external configuration", 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(readFileSync(file, "utf8"), "# hello\n");
   }
+});
+
+test("Prettier CLI infers TypeScript and TSX and corrects only code prose", (t) => {
+  for (const [filename, source, expected] of [
+    [
+      "example.ts",
+      '// helo\nconst value:string="hello";',
+      '// hello\nconst value: string = "hello";\n',
+    ],
+    [
+      "example.tsx",
+      "const value=<div>helo</div>;",
+      "const value = <div>hello</div>;\n",
+    ],
+  ]) {
+    const { file, run } = fixture(
+      t,
+      source,
+      { spellcheck: { autocorrect: true } },
+      filename,
+    );
+    const result = run("--write");
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFileSync(file, "utf8"), expected);
+    assert.equal(run("--check").status, 0);
+  }
+});
+
+test("Prettier CLI never partially corrects code when report-only strings need review", (t) => {
+  const source = '// helo\nconst value = "mispelled";\n';
+  const { file, run } = fixture(
+    t,
+    source,
+    {
+      spellcheck: { autocorrect: true, code: { strings: true } },
+    },
+    "example.js",
+  );
+  const result = run("--write");
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /Misspelled word: "mispelled"/u);
+  assert.equal(readFileSync(file, "utf8"), source);
 });

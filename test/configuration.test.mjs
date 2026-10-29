@@ -78,6 +78,9 @@ test("reports invalid inline options, serialized settings and missing dictionary
     [{ dictionaries: [""] }, /nonempty array/u],
     [{ frontMatter: { include: ["metadata..id"] } }, /dotted field paths/u],
     [{ frontMatter: { unknown: [] } }, /dotted field paths/u],
+    [{ code: null }, /code must be a boolean or an object/u],
+    [{ code: { strings: "true" } }, /code supports boolean/u],
+    [{ code: { unknown: true } }, /code supports boolean/u],
   ]) {
     await assert.rejects(format("hello\n", settings), message);
   }

@@ -73,7 +73,13 @@ export function spellingSettings(value) {
   }
   for (const key of Object.keys(value)) {
     if (
-      !["enabled", "autocorrect", "dictionaries", "frontMatter"].includes(key)
+      ![
+        "enabled",
+        "autocorrect",
+        "dictionaries",
+        "frontMatter",
+        "code",
+      ].includes(key)
     ) {
       throw new Error(`Unknown spellcheck option: ${key}.`);
     }
@@ -125,10 +131,33 @@ export function spellingSettings(value) {
       }
     }
   }
+  const code =
+    value.code === undefined || value.code === true ? {} : value.code;
+  if (code !== false) {
+    if (!code || typeof code !== "object" || Array.isArray(code)) {
+      throw new Error("spellcheck.code must be a boolean or an object.");
+    }
+    for (const [key, enabled] of Object.entries(code)) {
+      if (
+        !["comments", "jsx", "strings", "identifiers"].includes(key) ||
+        typeof enabled !== "boolean"
+      ) {
+        throw new Error(
+          "spellcheck.code supports boolean comments, jsx, strings, and identifiers settings.",
+        );
+      }
+    }
+  }
   return {
     enabled: value.enabled !== false,
     autocorrect: value.autocorrect === true,
     dictionaries,
     frontMatter,
+    code: {
+      comments: code !== false && code.comments !== false,
+      jsx: code !== false && code.jsx !== false,
+      strings: code !== false && code.strings === true,
+      identifiers: code !== false && code.identifiers === true,
+    },
   };
 }

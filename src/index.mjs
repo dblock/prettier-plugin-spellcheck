@@ -1,12 +1,13 @@
 import { parsers as markdownParsers } from "prettier/plugins/markdown";
 import { loadSettings, spellingSettings } from "./configuration.mjs";
 import { applyCorrections, checkSource, describeIssue } from "./spelling.mjs";
+import { codeParsers } from "./code.mjs";
 
 export const options = {
   spellcheck: {
     type: "boolean",
     category: "Spelling",
-    description: "Enable or disable Markdown spelling checks.",
+    description: "Enable or disable spelling checks.",
   },
   spellcheckConfig: {
     type: "string",
@@ -16,16 +17,17 @@ export const options = {
   },
 };
 
-async function preprocess(text, options) {
+async function preprocess(text, options, parser, original) {
   const settings = loadSettings(options);
   let corrected = text;
   if (settings.enabled) {
-    const errors = await checkSource(text, settings);
+    const errors = await checkSource(text, settings, { ...options, parser });
     const unresolved = settings.autocorrect
       ? errors.filter((error) => error.replacement === undefined)
       : errors;
     if (unresolved.length) {
-      const location = options.filepath || "<markdown>";
+      const location =
+        options.filepath || `<${parser === "markdown" ? "markdown" : "code"}>`;
       const details = unresolved.map(
         (error) =>
           `${location}:${error.line}:${error.column} ${describeIssue(error)}`,
@@ -38,13 +40,24 @@ async function preprocess(text, options) {
       corrected = applyCorrections(text, errors);
     }
   }
-  return markdownParsers.markdown.preprocess
-    ? markdownParsers.markdown.preprocess(corrected, options)
+  return original.preprocess
+    ? original.preprocess(corrected, options)
     : corrected;
 }
 
 export const parsers = {
-  markdown: { ...markdownParsers.markdown, preprocess },
+  ...Object.fromEntries(
+    Object.entries({
+      markdown: markdownParsers.markdown,
+      ...codeParsers,
+    }).map(([name, parser]) => [
+      name,
+      {
+        ...parser,
+        preprocess: (text, options) => preprocess(text, options, name, parser),
+      },
+    ]),
+  ),
 };
 
 const plugin = { options, parsers };

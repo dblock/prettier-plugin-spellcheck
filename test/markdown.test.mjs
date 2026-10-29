@@ -136,7 +136,7 @@ test("limits corrections to exactly one edit or adjacent transposition", () => {
   }
 });
 
-test("does not override JavaScript or MDX parsers", async () => {
+test("leaves programmatic strings and unsupported MDX unchanged", async () => {
   for (const [parser, source] of [
     ["babel", 'const helo="wrng";'],
     ["mdx", "# helo\n"],

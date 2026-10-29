@@ -37,9 +37,7 @@ async function preprocess(text, options, parser, original) {
         (error) =>
           `${location}:${error.line}:${error.column} ${describeIssue(error)}`,
       );
-      throw new Error(
-        `Spelling check failed; this file was not formatted.\n${details.join("\n")}`,
-      );
+      throw new Error(`Spelling check failed.\n${details.join("\n")}`);
     }
     if (settings.autocorrect) {
       corrected = applyCorrections(text, errors);

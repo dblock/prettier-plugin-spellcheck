@@ -19,7 +19,7 @@ test("reports spelling locations and suggestions without changing prose by defau
     (error) => {
       assert.match(error.message, /example\.md:1:3 Misspelled word: "helo"/u);
       assert.match(error.message, /Suggestions: hello/u);
-      assert.match(error.message, /this file was not formatted/u);
+      assert.equal(error.message.split("\n")[0], "Spelling check failed.");
       return true;
     },
   );

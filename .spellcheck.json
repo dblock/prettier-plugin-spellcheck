@@ -1,9 +1,0 @@
-{
-  "dictionaries": {
-    "en": [
-      "@cspell/dict-en_us",
-      "@cspell/dict-software-terms",
-      ".spellcheck.txt"
-    ]
-  }
-}

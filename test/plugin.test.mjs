@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as prettier from "prettier";
-import * as plugin from "../src/index.mjs";
+import { defineConfig } from "../src/index.mjs";
 
 const format = (source, options = {}) =>
-  prettier.format(source, {
-    parser: "markdown",
-    plugins: [plugin],
-    proseWrap: "never",
-    ...options,
-  });
+  prettier.format(
+    source,
+    defineConfig({
+      parser: "markdown",
+      proseWrap: "never",
+      ...options,
+    }),
+  );
 
 test("reports spelling locations and suggestions without changing prose by default", async () => {
   await assert.rejects(
@@ -26,7 +28,7 @@ test("reports spelling locations and suggestions without changing prose by defau
 test("autocorrects prose and delegates formatting to Prettier idempotently", async () => {
   const source =
     "#  Helo\n\nA mispelled word in [helo](https://wrng.invalid).\n";
-  const options = { spellcheckAutocorrect: true };
+  const options = { spellcheck: { autocorrect: true } };
   const actual = await format(source, options);
   assert.equal(
     actual,
@@ -37,7 +39,7 @@ test("autocorrects prose and delegates formatting to Prettier idempotently", asy
 
 test("refuses partial corrections when another word needs manual review", async () => {
   await assert.rejects(
-    format("helo xqzvvv\n", { spellcheckAutocorrect: true }),
+    format("helo xqzvvv\n", { spellcheck: { autocorrect: true } }),
     /<markdown>:1:6 Misspelled word: "xqzvvv"/u,
   );
 });
@@ -45,7 +47,7 @@ test("refuses partial corrections when another word needs manual review", async 
 test("does not rewrite mixed case, uppercase or identifier-like tokens", async () => {
   for (const source of ["heLo", "HELO", "helo-world", "helo.world"]) {
     await assert.rejects(
-      format(source, { spellcheckAutocorrect: true }),
+      format(source, { spellcheck: { autocorrect: true } }),
       /Spelling check failed/u,
     );
   }

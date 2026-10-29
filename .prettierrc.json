@@ -1,5 +1,0 @@
-{
-  "plugins": ["./src/index.mjs"],
-  "spellcheckConfig": "./.spellcheck.json",
-  "proseWrap": "never"
-}

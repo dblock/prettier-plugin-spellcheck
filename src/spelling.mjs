@@ -1,6 +1,6 @@
 import { parsers } from "prettier/plugins/markdown";
 import { getDictionary, wordOnly } from "./dictionaries.mjs";
-import { frontMatterOptions } from "./configuration.mjs";
+import { spellingSettings } from "./configuration.mjs";
 import { frontMatterSpans } from "./front-matter.mjs";
 
 const wordPattern =
@@ -245,20 +245,21 @@ function suppressions(comments, offsets) {
 
 export async function checkSource(
   text,
-  settings = {},
-  { autocorrect = false, suggestions = true } = {},
+  config = {},
+  { suggestions = true } = {},
 ) {
   if (text.startsWith("\uFEFF")) {
-    const issues = await checkSource(text.slice(1), settings, {
-      autocorrect,
-      suggestions,
-    });
+    const issues = await checkSource(text.slice(1), config, { suggestions });
     return issues.map((issue) => ({ ...issue, offset: issue.offset + 1 }));
   }
-  const dictionary = getDictionary(settings);
+  const settings = spellingSettings(config);
+  if (!settings.enabled) {
+    return [];
+  }
+  const dictionary = getDictionary(settings.dictionaries);
   const { spans, ignored, comments } = await markdownSpans(
     text,
-    frontMatterOptions(settings),
+    settings.frontMatter,
   );
   const offsets = lineStarts(text);
   const suppressed = suppressions(comments, offsets);
@@ -296,7 +297,7 @@ export async function checkSource(
         !/[\p{L}\p{M}\p{N}\p{Pc}](?:[.-])?$/u.test(raw.slice(0, first)) &&
         !/^(?:[.-])?[\p{L}\p{M}\p{N}\p{Pc}]/u.test(raw.slice(last));
       let fix =
-        autocorrect &&
+        settings.autocorrect &&
         standalone &&
         span.allowFix !== false &&
         text.slice(offset, sourceEnd) === word

@@ -1,110 +1,79 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-
-export function frontMatterOptions(settings) {
-  const markdown = settings.markdown === undefined ? {} : settings.markdown;
-  if (!markdown || typeof markdown !== "object" || Array.isArray(markdown)) {
-    throw new Error("markdown must be an object.");
-  }
-  if (Object.keys(markdown).some((key) => key !== "frontMatter")) {
-    throw new Error("Unknown markdown spelling option; expected frontMatter.");
-  }
-  const value = markdown.frontMatter;
-  const config = value === undefined || value === true ? {} : value;
-  if (config === false) {
-    return false;
-  }
-  if (!config || typeof config !== "object" || Array.isArray(config)) {
-    throw new Error("markdown.frontMatter must be a boolean or an object.");
-  }
-  for (const [key, paths] of Object.entries(config)) {
-    if (
-      !["include", "exclude"].includes(key) ||
-      !Array.isArray(paths) ||
-      paths.some(
-        (path) =>
-          typeof path !== "string" ||
-          !path ||
-          path.split(".").some((part) => !part),
-      )
-    ) {
-      throw new Error(
-        "markdown.frontMatter include/exclude must be arrays of dotted field paths.",
-      );
-    }
-  }
-  return config;
-}
-
-export function loadSettings(file) {
-  if (file === undefined) {
-    return {};
-  }
-  if (typeof file !== "string" || !file.trim()) {
-    throw new Error("spellcheckConfig must be a nonempty JSON file path.");
-  }
-  const path = resolve(file);
-  let settings;
-  try {
-    settings = JSON.parse(readFileSync(path, "utf8"));
-  } catch (error) {
-    throw new Error(
-      `Cannot read spelling configuration ${path}: ${error.message}`,
-      {
+export function spellingSettings(value) {
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch (error) {
+      throw new Error(`Invalid spellcheck JSON: ${error.message}`, {
         cause: error,
-      },
-    );
-  }
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
-    throw new Error(`Spelling configuration ${path} must be a JSON object.`);
-  }
-  for (const key of Object.keys(settings)) {
-    if (!["dictionaries", "markdown"].includes(key)) {
-      throw new Error(`Unknown spelling configuration option: ${key}.`);
+      });
     }
-    frontMatterOptions(settings);
   }
-  const dictionaries = settings.dictionaries;
+  if (value === undefined || value === true) {
+    value = {};
+  } else if (value === false) {
+    value = { enabled: false };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("spellcheck must be an object or boolean.");
+  }
+  for (const key of Object.keys(value)) {
+    if (
+      !["enabled", "autocorrect", "dictionaries", "frontMatter"].includes(key)
+    ) {
+      throw new Error(`Unknown spellcheck option: ${key}.`);
+    }
+  }
+  for (const key of ["enabled", "autocorrect"]) {
+    if (value[key] !== undefined && typeof value[key] !== "boolean") {
+      throw new Error(`spellcheck.${key} must be a boolean.`);
+    }
+  }
+  const dictionaries =
+    value.dictionaries === undefined
+      ? ["@cspell/dict-en_us"]
+      : value.dictionaries;
   if (
-    dictionaries !== undefined &&
-    (!dictionaries ||
-      typeof dictionaries !== "object" ||
-      Array.isArray(dictionaries) ||
-      !Object.keys(dictionaries).length)
+    !Array.isArray(dictionaries) ||
+    !dictionaries.length ||
+    dictionaries.some((entry) => typeof entry !== "string" || !entry.trim())
   ) {
     throw new Error(
-      "dictionaries must be a nonempty language-to-dictionary map.",
+      "spellcheck.dictionaries must be a nonempty array of dictionary packages or .txt paths.",
     );
   }
-  if (
-    dictionaries &&
-    typeof dictionaries === "object" &&
-    !Array.isArray(dictionaries)
-  ) {
-    for (const [language, entries] of Object.entries(dictionaries)) {
+  const frontMatter =
+    value.frontMatter === undefined || value.frontMatter === true
+      ? {}
+      : value.frontMatter;
+  if (frontMatter !== false) {
+    if (
+      !frontMatter ||
+      typeof frontMatter !== "object" ||
+      Array.isArray(frontMatter)
+    ) {
+      throw new Error("spellcheck.frontMatter must be a boolean or an object.");
+    }
+    for (const [key, paths] of Object.entries(frontMatter)) {
       if (
-        !language.trim() ||
-        !Array.isArray(entries) ||
-        !entries.length ||
-        entries.some((entry) => typeof entry !== "string" || !entry.trim())
+        !["include", "exclude"].includes(key) ||
+        !Array.isArray(paths) ||
+        paths.some(
+          (path) =>
+            typeof path !== "string" ||
+            !path ||
+            path.split(".").some((part) => !part),
+        )
       ) {
         throw new Error(
-          `dictionaries.${language} must be a nonempty array of dictionary names or .txt paths.`,
+          "spellcheck.frontMatter include/exclude must be arrays of dotted field paths.",
         );
       }
     }
-    settings.dictionaries = Object.fromEntries(
-      Object.entries(dictionaries).map(([language, entries]) => [
-        language,
-        Array.isArray(entries)
-          ? entries.map((entry) =>
-              typeof entry === "string" && entry.endsWith(".txt")
-                ? resolve(dirname(path), entry)
-                : entry,
-            )
-          : entries,
-      ]),
-    );
   }
-  return settings;
+  return {
+    enabled: value.enabled !== false,
+    autocorrect: value.autocorrect === true,
+    dictionaries,
+    frontMatter,
+  };
 }

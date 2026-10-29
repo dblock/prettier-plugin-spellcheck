@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as prettier from "prettier";
-import * as plugin from "../src/index.mjs";
+import { defineConfig } from "../src/index.mjs";
 import {
   applyCorrections,
   checkSource,
@@ -9,12 +9,14 @@ import {
 } from "../src/spelling.mjs";
 
 const format = (source, options = {}) =>
-  prettier.format(source, {
-    parser: "markdown",
-    plugins: [plugin],
-    spellcheckAutocorrect: true,
-    ...options,
-  });
+  prettier.format(
+    source,
+    defineConfig({
+      parser: "markdown",
+      spellcheck: { autocorrect: true },
+      ...options,
+    }),
+  );
 
 test("preserves Unicode and UTF-16 fix positions with CRLF and inline markup", async () => {
   const source = "# 😀 café **helo**\r\n\r\n> helo\r\n\r\nHello\thelo\r\n";
@@ -40,7 +42,7 @@ test("leaves Liquid contents alone while correcting surrounding prose", async ()
 
 test("preserves BOM and CRLF offsets in body and YAML spelling corrections", async () => {
   const source = "\uFEFF---\r\ntitle: helo\r\n---\r\n\r\nhelo\r\n";
-  const issues = await checkSource(source, {}, { autocorrect: true });
+  const issues = await checkSource(source, { autocorrect: true });
   assert.deepEqual(
     issues.map(({ word }) => word),
     ["helo", "helo"],

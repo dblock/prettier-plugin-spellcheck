@@ -112,36 +112,17 @@ function suggest(dictionary, word) {
   return cache.get(word);
 }
 
-export function getDictionary(settings = {}) {
-  const entries =
-    settings.dictionaries === undefined
-      ? { en: ["@cspell/dict-en_us"] }
-      : settings.dictionaries;
+export function getDictionary(entries) {
   if (
-    !entries ||
-    typeof entries !== "object" ||
-    Array.isArray(entries) ||
-    !Object.keys(entries).length
+    !Array.isArray(entries) ||
+    !entries.length ||
+    entries.some((entry) => typeof entry !== "string" || !entry.trim())
   ) {
     throw new Error(
-      "dictionaries must be a nonempty language-to-dictionary map.",
+      "spellcheck.dictionaries must be a nonempty array of dictionary packages or .txt paths.",
     );
   }
-  for (const [language, names] of Object.entries(entries)) {
-    if (
-      !language.trim() ||
-      !Array.isArray(names) ||
-      !names.length ||
-      names.some((name) => typeof name !== "string" || !name.trim())
-    ) {
-      throw new Error(
-        `dictionaries.${language} must be a nonempty array of dictionary names or .txt paths.`,
-      );
-    }
-  }
-  const dictionaries = [...new Set(Object.values(entries).flat())].flatMap(
-    load,
-  );
+  const dictionaries = [...new Set(entries)].flatMap(load);
   const collection = createCollection(dictionaries, "prettier-spellcheck");
   return {
     has: (word) => collection.has(word, { ignoreCase: false }),

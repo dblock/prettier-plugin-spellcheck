@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 
-import { glob } from "node:fs/promises";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, relative, resolve, sep } from "node:path";
+import { glob, stat } from "node:fs/promises";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { getFileInfo, resolveConfig } from "prettier";
-import { loadSettings } from "./configuration.mjs";
+import { getFileInfo, resolveConfig, resolveConfigFile } from "prettier";
 import { checkSource } from "./spelling.mjs";
+import { getDictionary } from "./dictionaries.mjs";
+import { addDictionary } from "./update-config.mjs";
 
-const usage = `Usage: prettier-plugin-spellcheck collect <globs...> [--output .spellcheck.txt] [--config spelling.json]
-       prettier-plugin-spellcheck add <dictionary.txt> [--config .spellcheck.json] [--language en]`;
+const usage = `Usage: prettier-plugin-spellcheck collect <globs...> [--output .spellcheck.txt] [--config prettier.config.mjs]
+       prettier-plugin-spellcheck add <dictionary.txt> [--config prettier.config.mjs]`;
 
 async function collect(patterns, values) {
   if (!values.output.trim()) {
@@ -20,26 +21,33 @@ async function collect(patterns, values) {
   for await (const file of glob(patterns, {
     exclude: ["**/node_modules/**", "**/.git/**"],
   })) {
+    if (!(await stat(file)).isFile()) {
+      continue;
+    }
     const info = await getFileInfo(file, {
       ignorePath: [".gitignore", ".prettierignore"],
+      resolveConfig: false,
     });
-    if (info.ignored || info.inferredParser !== "markdown") {
+    if (info.ignored) {
+      continue;
+    }
+    const config =
+      (await resolveConfig(file, {
+        editorconfig: true,
+        ...(values.config ? { config: resolve(values.config) } : {}),
+      })) || {};
+    if ((config.parser ?? info.inferredParser) !== "markdown") {
       continue;
     }
     matched++;
-    const config = (await resolveConfig(file, { editorconfig: true })) || {};
-    if (config.spellcheck === false) {
-      continue;
-    }
-    const settings = loadSettings(values.config ?? config.spellcheckConfig);
-    for (const error of await checkSource(
+    for (const issue of await checkSource(
       readFileSync(file, "utf8"),
-      settings,
+      config.spellcheck,
       {
         suggestions: false,
       },
     )) {
-      words.add(error.word);
+      words.add(issue.word);
     }
   }
   if (!matched) {
@@ -61,54 +69,11 @@ async function collect(patterns, values) {
   );
 }
 
-async function add(files, values) {
-  if (files.length !== 1 || !files[0].endsWith(".txt")) {
-    throw new Error(usage);
-  }
-  const configPath = values.config ?? ".spellcheck.json";
-  if (!configPath.endsWith(".json")) {
-    throw new Error("add supports .json spelling configuration files only.");
-  }
-  const path = resolve(files[0]);
-  await checkSource(
-    "",
-    { dictionaries: { project: [path] } },
-    { suggestions: false },
-  );
-  const exists = existsSync(configPath);
-  if (exists) {
-    loadSettings(configPath);
-  }
-  const settings = exists ? JSON.parse(readFileSync(configPath, "utf8")) : {};
-  const dictionaries = settings.dictionaries ?? { en: ["@cspell/dict-en_us"] };
-  const entries = dictionaries[values.language] ?? [];
-  const base = dirname(resolve(configPath));
-  const relativePath = relative(base, path).split(sep).join("/");
-  const entry = relativePath.startsWith(".")
-    ? relativePath
-    : `./${relativePath}`;
-  settings.dictionaries = {
-    ...dictionaries,
-    [values.language]: entries.some(
-      (name) => name.endsWith(".txt") && resolve(base, name) === path,
-    )
-      ? entries
-      : [...entries, entry],
-  };
-  writeFileSync(configPath, `${JSON.stringify(settings, null, 2)}\n`, {
-    flag: exists ? "w" : "wx",
-  });
-  console.log(
-    `Added ${entry} to ${configPath}. Set spellcheckConfig to this file in your Prettier configuration.`,
-  );
-}
-
 try {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
       output: { type: "string", default: ".spellcheck.txt" },
-      language: { type: "string", default: "en" },
       config: { type: "string" },
       help: { type: "boolean" },
     },
@@ -116,14 +81,21 @@ try {
   if (values.help) {
     console.log(usage);
   } else {
-    if (!values.language.trim()) {
-      throw new Error("--language must be nonempty.");
-    }
     const [command, ...patterns] = positionals;
     if (command === "collect" && patterns.length) {
       await collect(patterns, values);
-    } else if (command === "add") {
-      await add(patterns, values);
+    } else if (
+      command === "add" &&
+      patterns.length === 1 &&
+      patterns[0].endsWith(".txt")
+    ) {
+      getDictionary([resolve(patterns[0])]);
+      const file =
+        values.config ?? (await resolveConfigFile()) ?? ".prettierrc.mjs";
+      const { changed, entry } = await addDictionary(file, patterns[0]);
+      console.log(
+        `${changed ? "Added" : "Already registered"} ${entry} in ${file}.`,
+      );
     } else {
       throw new Error(usage);
     }

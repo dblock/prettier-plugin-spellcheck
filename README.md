@@ -53,7 +53,7 @@ Select a different file with `spellcheckConfig` in any normal Prettier configura
 ```json
 {
   "plugins": ["prettier-plugin-spellcheck"],
-  "spellcheckConfig": "./config/spelling.json"
+  "spellcheckConfig": "./config/spellcheck.json"
 }
 ```
 

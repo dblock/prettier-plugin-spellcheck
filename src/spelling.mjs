@@ -133,6 +133,7 @@ async function markdownSpans(text, frontMatter, checkFences = false) {
   const code = [];
   const comments = [];
   const fences = [];
+  const markup = [];
   async function visit(node, base = 0) {
     const start = base + node.position.start.offset;
     const end = base + node.position.end.offset;
@@ -146,6 +147,24 @@ async function markdownSpans(text, frontMatter, checkFences = false) {
       }
     } else if (node.type === "text") {
       spans.push({ start, end });
+      const raw = text.slice(start, end);
+      for (const match of raw.matchAll(
+        /<!--\s*(?:markdownlint|spellcheck)[-:]/gu,
+      )) {
+        const first = start + match.index;
+        if (
+          overlaps(markup, first, first + 1) ||
+          /\\*$/u.exec(text.slice(0, first))[0].length % 2
+        ) {
+          continue;
+        }
+        const closing = text.indexOf("-->", first + match[0].length);
+        if (closing !== -1) {
+          const last = closing + 3;
+          comments.push({ text: text.slice(first, last), start: first });
+          markup.push([first, last]);
+        }
+      }
     } else if (node.type === "html") {
       comments.push({ text: node.value, start });
     } else if (node.type === "image" || node.type === "imageReference") {
@@ -218,8 +237,10 @@ async function markdownSpans(text, frontMatter, checkFences = false) {
     ignored,
     comments,
     fences,
+    markup,
     directiveIgnored: [
       ...code,
+      ...markup,
       ...comments.map((comment) => [
         comment.start,
         comment.start + comment.text.length,
@@ -352,6 +373,7 @@ export async function checkSource(
       : await markdownSpans(text, settings.frontMatter, settings.code.fences);
   const { spans, ignored, comments } = context;
   const fences = context.fences || [];
+  const markup = context.markup || [];
   const nativeIgnored = [];
   for (const source of context.prose || []) {
     nativeIgnored.push(...source.directiveIgnored);
@@ -379,6 +401,9 @@ export async function checkSource(
           source.mapping[start].start,
           source.mapping[end - 1].end,
         ]);
+    }
+    for (const [start, end] of parsed.markup) {
+      markup.push([source.mapping[start].start, source.mapping[end - 1].end]);
     }
     for (const comment of parsed.comments) {
       comments.push({
@@ -441,6 +466,7 @@ export async function checkSource(
         suppressed(location.line, offset) ||
         overlaps(excluded, first, last) ||
         overlaps(ignored, offset, sourceEnd) ||
+        overlaps(markup, offset, sourceEnd) ||
         (!span.literal &&
           (/&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);$/iu.test(raw.slice(0, first)) ||
             /^&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/iu.test(raw.slice(last)))) ||
@@ -479,7 +505,7 @@ export async function checkSource(
   for (const fence of fences) {
     if (
       !fence.text ||
-      ignored.some(
+      [...ignored, ...markup].some(
         ([first, last]) => first <= fence.start && last >= fence.end,
       ) ||
       lineStarts(fence.text)
@@ -515,7 +541,11 @@ export async function checkSource(
       const offset = fence.mapping[issue.offset].start;
       const end = fence.mapping[issue.offset + issue.length - 1].end;
       const location = position(offsets, offset);
-      if (suppressed(location.line, offset) || overlaps(ignored, offset, end)) {
+      if (
+        suppressed(location.line, offset) ||
+        overlaps(ignored, offset, end) ||
+        overlaps(markup, offset, end)
+      ) {
         continue;
       }
       issues.push({

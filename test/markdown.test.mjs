@@ -101,6 +101,28 @@ test("supports directive reasons, rule lists, colon regions, and own-line todo",
   );
 });
 
+test("inline explanations survive Markdown parser versions, markup, and repeated formatting", async () => {
+  const source =
+    "qzxhidden <!-- spellcheck:todo -- `qzxreason` and **qzxreason** -->\n\nhelo\n";
+  assert.deepEqual(
+    (await checkSource(source)).map(({ word }) => word),
+    ["helo"],
+  );
+  const actual = await format(source);
+  assert.equal(actual, source.replace("\nhelo\n", "\nhello\n"));
+  assert.equal(await format(actual), actual);
+  for (const literal of [
+    "\\<!-- spellcheck:disable -- reason -->",
+    "`<!-- spellcheck:disable -- reason -->`",
+  ]) {
+    assert.ok(
+      (await checkSource(`${literal}\n\nhelo\n`)).some(
+        ({ word }) => word === "helo",
+      ),
+    );
+  }
+});
+
 test("directives hidden in Liquid and ignored nodes cannot suppress surrounding prose", async () => {
   for (const source of [
     "{{\n<!-- spellcheck-disable -->\n}}\n\nhelo\n",

@@ -28,6 +28,18 @@ test("inline vocabulary reloads edits without a separate configuration file", as
   await assert.rejects(format("qzxwidget\n", settings), /Misspelled word/u);
 });
 
+test("curly apostrophes recognize straight-apostrophe vocabulary without folding case", async (t) => {
+  const settings = { dictionaries: [fixtureFile(t, "Qzx'widget\n")] };
+  assert.equal(
+    await format("Qzx\u2019widget\n", settings),
+    "Qzx\u2019widget\n",
+  );
+  await assert.rejects(
+    format("qzx\u2019widget\n", settings),
+    /Misspelled word/u,
+  );
+});
+
 test("uses installed language dictionaries together and honors explicit replacement", async (t) => {
   assert.equal(
     await format("Hello mundo\n", {

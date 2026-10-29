@@ -1,5 +1,9 @@
 import { parsers } from "prettier/plugins/markdown";
-import { getDictionary, wordOnly } from "./dictionaries.mjs";
+import {
+  getDictionary,
+  normalizeApostrophes,
+  wordOnly,
+} from "./dictionaries.mjs";
 import { spellingSettings } from "./configuration.mjs";
 import { frontMatterSpans } from "./front-matter.mjs";
 import { codeParsers, codeSpans } from "./code.mjs";
@@ -58,11 +62,18 @@ function replacement(word, candidates, dictionary) {
   if (
     !candidate ||
     !wordOnly.test(candidate) ||
-    !oneEditAway(lower, candidate)
+    !oneEditAway(
+      normalizeApostrophes(lower),
+      normalizeApostrophes(candidate),
+    ) ||
+    (word.includes("'") && word.includes("\u2019"))
   ) {
     return undefined;
   }
-  const result = word === lower ? candidate : title(candidate);
+  const styled = word.includes("\u2019")
+    ? candidate.replaceAll("'", "\u2019")
+    : candidate;
+  const result = word === lower ? styled : title(styled);
   return dictionary.has(result) ? result : undefined;
 }
 

@@ -37,6 +37,18 @@ test("autocorrects prose and delegates formatting to Prettier idempotently", asy
   assert.equal(await format(actual, options), actual);
 });
 
+test("corrects typographic contractions without changing their apostrophe style", async () => {
+  const options = { spellcheck: { autocorrect: true } };
+  assert.equal(
+    await format("dosn\u2019t dosn't\n", options),
+    "doesn\u2019t doesn't\n",
+  );
+  await assert.rejects(
+    format("dosn\u2019t\n"),
+    /Misspelled word: "dosn\u2019t"/u,
+  );
+});
+
 test("refuses partial corrections when another word needs manual review", async () => {
   await assert.rejects(
     format("helo xqzvvv\n", { spellcheck: { autocorrect: true } }),

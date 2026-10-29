@@ -12,6 +12,7 @@ const require = createRequire(import.meta.url);
 const packages = new Map();
 const suggestions = new WeakMap();
 export const wordOnly = /^\p{L}[\p{L}\p{M}]*(?:['’]\p{L}[\p{L}\p{M}]*)*$/u;
+export const normalizeApostrophes = (word) => word.replaceAll("\u2019", "'");
 
 function vocabulary(path) {
   return readFileSync(path, "utf8")
@@ -125,11 +126,17 @@ export function getDictionary(entries) {
   const dictionaries = [...new Set(entries)].flatMap(load);
   const collection = createCollection(dictionaries, "prettier-spellcheck");
   return {
-    has: (word) => collection.has(word, { ignoreCase: false }),
+    has: (word) =>
+      collection.has(word, { ignoreCase: false }) ||
+      (word.includes("\u2019") &&
+        !collection.isForbidden(word) &&
+        collection.has(normalizeApostrophes(word), { ignoreCase: false })),
     suggest: (word) => {
       // Rank individual results to retain each dictionary's weighted edit costs.
       const ranked = dictionaries
-        .flatMap((dictionary) => suggest(dictionary, word))
+        .flatMap((dictionary) =>
+          suggest(dictionary, normalizeApostrophes(word)),
+        )
         .sort((left, right) => left.cost - right.cost);
       return [...new Set(ranked.map((result) => result.word))]
         .filter(

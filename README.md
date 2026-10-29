@@ -196,7 +196,7 @@ Use `<!-- spellcheck-disable -->` and `<!-- spellcheck-enable -->` to suppress s
 
 Prettier's `<!-- prettier-ignore -->` directive skips the next Markdown node for both spelling and formatting. Properly separated top-level `prettier-ignore-start`/`prettier-ignore-end` ranges are skipped too. Ignore-looking text inside code is not treated as a directive.
 
-Unicode words, accented letters, apostrophes, and original UTF-16 source coordinates are supported. Liquid expressions (`{{ ... }}`) and tags (`{% ... %}`), including multiline forms, are excluded from Markdown spelling checks; surrounding prose is checked. Ordinary formatting remains delegated to Prettier.
+Unicode words, accented letters, apostrophes, and original UTF-16 source coordinates are supported. Curly apostrophes also try straight-apostrophe dictionary lookup without ignoring vocabulary capitalization; corrections preserve the original apostrophe style. Liquid expressions (`{{ ... }}`) and tags (`{% ... %}`), including multiline forms, are excluded from Markdown spelling checks; surrounding prose is checked. Ordinary formatting remains delegated to Prettier.
 
 The plugin wraps Prettier's built-in Markdown and supported code parsers. Plugins that also replace these parsers are not automatically composable; load order alone does not guarantee both transformations run.
 

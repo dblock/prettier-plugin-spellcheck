@@ -83,7 +83,7 @@ test("collect never overwrites candidates or creates output for unmatched patter
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /No non-ignored Markdown, plain-text, or supported code files/u,
+    /No non-ignored Markdown, HTML, plain-text, or supported code files/u,
   );
   assert.equal(existsSync(join(directory, "missing.txt")), false);
 });
@@ -117,6 +117,46 @@ test("collect checks explicitly enabled tagged code fences without suggestions",
     read(".spellcheck.txt"),
     "# Review these candidates: remove typos before using this dictionary.\nqzxfenced\n",
   );
+});
+
+test("collect and refresh infer HTML, decode attributes, and respect HTML overrides and ignored scopes", (t) => {
+  const { write, read, run } = fixture(t);
+  write(
+    ".prettierrc.mjs",
+    configSource({
+      overrides: [
+        { files: "disabled.html", options: { spellcheck: { html: false } } },
+      ],
+    }),
+  );
+  write("disabled.html", "<p>qzxdisabled</p>");
+  write(
+    "example.html",
+    '<p>qzxvisible</p><img alt="qzx&#97;ttribute"><script>// qzxscript</script><code>qzxcode</code>',
+  );
+  const collected = run("collect", "*.html");
+  assert.equal(collected.status, 0, collected.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nqzxattribute\nqzxvisible\n",
+  );
+  write(
+    "spellcheck.json",
+    JSON.stringify({
+      dictionaries: ["@cspell/dict-en_us", "./.spellcheck.txt"],
+    }),
+  );
+  write("example.html", "<p>qzxvisible qzxnew</p>");
+  const refreshed = run("collect", "*.html", "--refresh");
+  assert.equal(refreshed.status, 0, refreshed.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nqzxvisible\nqzxnew\n",
+  );
+  write("spellcheck.json", JSON.stringify({ html: false }));
+  const disabled = run("collect", "*.html", "--refresh");
+  assert.equal(disabled.status, 1);
+  assert.match(disabled.stderr, /No enabled spelling inputs/u);
 });
 
 test("refresh excludes old vocabulary aliases, prunes stale words, and preserves retained spelling and comments", (t) => {

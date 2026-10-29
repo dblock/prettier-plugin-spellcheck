@@ -8,6 +8,7 @@
 - Preserve Prettier's ordinary printing and user formatting options. Check code prose using ASTs, not source-wide regular expressions. Strings and identifiers are opt-in and report-only; never rename identifiers or rewrite programmatic strings. Keep unsupported languages and MDX unchanged.
 - Add focused tests for source ranges, conservative corrections, dictionary handling, plugin integration, and CLI behavior.
 - Keep plain text literal and preserve its layout. Exclude configured vocabulary resources from text checking and collection.
+- Check standalone HTML through its public AST and entity tokens. Keep attributes and markup-spanning words report-only, exclude scripts/styles/code examples, and do not widen scopes during embedded formatting.
 - Keep tagged code fences opt-in, preserve container/source mappings, and isolate their suppression state from surrounding documents.
 - Vocabulary collection must not overwrite by default. Refresh is explicit, excludes the old output dictionary, and must fail safely before replacing reviewed vocabulary.
 - Run lint and relevant tests before committing. Keep Markdown paragraphs on one source line.

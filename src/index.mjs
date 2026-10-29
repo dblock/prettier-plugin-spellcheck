@@ -2,6 +2,7 @@ import { parsers as markdownParsers } from "prettier/plugins/markdown";
 import { loadSettings, spellingSettings } from "./configuration.mjs";
 import { applyCorrections, checkSource, describeIssue } from "./spelling.mjs";
 import { codeParsers } from "./code.mjs";
+import { htmlParser } from "./html.mjs";
 import { languages, parsers as textParsers, printers } from "./text.mjs";
 
 export { languages, printers };
@@ -31,7 +32,7 @@ async function preprocess(text, options, parser, original) {
     if (unresolved.length) {
       const location =
         options.filepath ||
-        `<${parser === "markdown" ? "markdown" : parser === "spellcheck-text" ? "text" : "code"}>`;
+        `<${parser === "markdown" ? "markdown" : parser === "html" ? "html" : parser === "spellcheck-text" ? "text" : "code"}>`;
       const details = unresolved.map(
         (error) =>
           `${location}:${error.line}:${error.column} ${describeIssue(error)}`,
@@ -44,6 +45,8 @@ async function preprocess(text, options, parser, original) {
       corrected = applyCorrections(text, errors);
     }
   }
+  // Embedded printers must not widen the spelling scopes already checked above.
+  options.spellcheck = false;
   return original.preprocess
     ? original.preprocess(corrected, options)
     : corrected;
@@ -53,6 +56,7 @@ export const parsers = {
   ...Object.fromEntries(
     Object.entries({
       markdown: markdownParsers.markdown,
+      html: htmlParser,
       ...codeParsers,
       ...textParsers,
     }).map(([name, parser]) => [

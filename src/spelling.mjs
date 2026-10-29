@@ -10,6 +10,7 @@ import { frontMatterSpans } from "./front-matter.mjs";
 import { codeParsers, codeSpans } from "./code.mjs";
 import { textParser } from "./text.mjs";
 import { fenceSource } from "./fences.mjs";
+import { htmlSpans } from "./html.mjs";
 
 const wordPattern =
   /[\p{L}\p{M}\p{N}\p{Pc}]+(?:['’][\p{L}\p{M}\p{N}\p{Pc}]+)*/gu;
@@ -126,6 +127,34 @@ function imageLabel(text, node) {
   throw new Error("Cannot locate Markdown image description.");
 }
 
+function templateRanges(text, excluded) {
+  const ignored = [];
+  let cursor = 0;
+  const opener = /\{\{|\{%/gu;
+  while (cursor < text.length) {
+    opener.lastIndex = cursor;
+    const match = opener.exec(text);
+    if (!match) break;
+    const containing = excluded.find(
+      ([first, last]) => match.index >= first && match.index < last,
+    );
+    if (containing) {
+      cursor = containing[1];
+      continue;
+    }
+    const closing = text.indexOf(
+      match[0] === "{{" ? "}}" : "%}",
+      match.index + 2,
+    );
+    if (closing === -1) cursor = match.index + 2;
+    else {
+      ignored.push([match.index, closing + 2]);
+      cursor = closing + 2;
+    }
+  }
+  return ignored;
+}
+
 async function markdownSpans(text, frontMatter, checkFences = false) {
   const ast = await parsers.markdown.parse(text, { parser: "markdown" });
   const spans = [];
@@ -206,32 +235,7 @@ async function markdownSpans(text, frontMatter, checkFences = false) {
       start = undefined;
     }
   }
-  let cursor = 0;
-  const opener = /\{\{|\{%/gu;
-  while (cursor < text.length) {
-    opener.lastIndex = cursor;
-    const match = opener.exec(text);
-    if (!match) {
-      break;
-    }
-    const containingCode = code.find(
-      ([first, last]) => match.index >= first && match.index < last,
-    );
-    if (containingCode) {
-      cursor = containingCode[1];
-      continue;
-    }
-    const closing = text.indexOf(
-      match[0] === "{{" ? "}}" : "%}",
-      match.index + 2,
-    );
-    if (closing === -1) {
-      cursor = match.index + 2;
-    } else {
-      ignored.push([match.index, closing + 2]);
-      cursor = closing + 2;
-    }
-  }
+  ignored.push(...templateRanges(text, code));
   return {
     spans,
     ignored,
@@ -348,11 +352,12 @@ export async function checkSource(
     return [];
   }
   if (
-    !["markdown", textParser].includes(parser) &&
+    !["markdown", "html", textParser].includes(parser) &&
     !Object.hasOwn(codeParsers, parser)
   ) {
     throw new Error(`Unsupported spelling parser: ${parser}.`);
   }
+  if (parser === "html" && !settings.html) return [];
   if (
     parser === textParser &&
     isDictionaryFile(settings.dictionaries, parserOptions.filepath)
@@ -370,8 +375,11 @@ export async function checkSource(
           ignored: [],
           comments: [],
         }
-      : await markdownSpans(text, settings.frontMatter, settings.code.fences);
+      : parser === "html"
+        ? await htmlSpans(text, parserOptions)
+        : await markdownSpans(text, settings.frontMatter, settings.code.fences);
   const { spans, ignored, comments } = context;
+  if (parser === "html") ignored.push(...templateRanges(text, ignored));
   const fences = context.fences || [];
   const markup = context.markup || [];
   const nativeIgnored = [];

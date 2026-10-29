@@ -79,12 +79,13 @@ export function spellingSettings(value) {
         "dictionaries",
         "frontMatter",
         "code",
+        "html",
       ].includes(key)
     ) {
       throw new Error(`Unknown spellcheck option: ${key}.`);
     }
   }
-  for (const key of ["enabled", "autocorrect"]) {
+  for (const key of ["enabled", "autocorrect", "html"]) {
     if (value[key] !== undefined && typeof value[key] !== "boolean") {
       throw new Error(`spellcheck.${key} must be a boolean.`);
     }
@@ -155,6 +156,7 @@ export function spellingSettings(value) {
     autocorrect: value.autocorrect === true,
     dictionaries,
     frontMatter,
+    html: value.html !== false,
     code: {
       comments: code !== false && code.comments !== false,
       jsx: code !== false && code.jsx !== false,

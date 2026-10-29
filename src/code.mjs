@@ -24,7 +24,7 @@ const metadataTag =
   /^(?:author|license|preserve|type|typedef|callback|implements|extends|augments|satisfies|this|enum|namespace|memberof|alias|name|module|requires|import|default|defaultValue|inheritDoc)$/iu;
 const parameterTag =
   /^(?:param|arg|argument|property|prop|template|typeParam)$/iu;
-const proseAttributes = new Set([
+export const proseAttributes = new Set([
   "alt",
   "title",
   "placeholder",

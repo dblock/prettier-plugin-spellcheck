@@ -64,6 +64,58 @@ test("Prettier CLI infers literal plain text and preserves its layout while corr
   assert.equal(readFileSync(file, "utf8"), source.replace("helo", "hello"));
 });
 
+test("Prettier CLI infers HTML and corrects prose without checking embedded scripts", (t) => {
+  const { file, run } = fixture(
+    t,
+    "<p>helo</p><script>// qzxcomment\nconst value=1;</script>",
+    { spellcheck: { autocorrect: true } },
+    "example.html",
+  );
+  const result = run("--write");
+  assert.equal(result.status, 0, result.stderr);
+  const actual = readFileSync(file, "utf8");
+  assert.match(actual, /<p>hello<\/p>/u);
+  assert.match(actual, /const value = 1;/u);
+  assert.match(actual, /\/\/ qzxcomment/u);
+});
+
+test("Prettier CLI leaves HTML untouched when a report-only attribute needs review", (t) => {
+  const source = '<p>helo</p><img alt="helo" src="image.png">';
+  const { file, run } = fixture(
+    t,
+    source,
+    { spellcheck: { autocorrect: true } },
+    "example.html",
+  );
+  const result = run("--write");
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /example\.html:1:22 Misspelled word: "helo"/u);
+  assert.equal(readFileSync(file, "utf8"), source);
+});
+
+test("Prettier CLI loads HTML settings from automatic and explicit JSON configuration", (t) => {
+  const { directory, file, run } = fixture(
+    t,
+    "<p>helo</p>",
+    null,
+    "example.html",
+  );
+  writeFileSync(
+    join(directory, "spellcheck.json"),
+    JSON.stringify({ html: false }),
+  );
+  const disabled = run("--write");
+  assert.equal(disabled.status, 0, disabled.stderr);
+  assert.match(readFileSync(file, "utf8"), /<p>helo<\/p>/u);
+  writeFileSync(
+    join(directory, "custom.json"),
+    JSON.stringify({ html: true, autocorrect: true }),
+  );
+  const corrected = run("--write", "--spellcheck-config", "./custom.json");
+  assert.equal(corrected.status, 0, corrected.stderr);
+  assert.match(readFileSync(file, "utf8"), /<p>hello<\/p>/u);
+});
+
 test("Prettier CLI writes enabled corrections and then passes check", (t) => {
   const { file, run } = fixture(t, "#  helo\n", {
     spellcheck: { autocorrect: true },

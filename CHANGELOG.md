@@ -3,6 +3,7 @@
 ## 0.1.0 (Next)
 
 - Your contribution here.
+- Spellcheck standalone HTML prose and human-facing attributes with source-mapped entities, safe text corrections, suppression/ignore support, and vocabulary collection/refresh.
 - Preserve inline suppression explanations across supported Prettier Markdown parser versions, including formatted reason text.
 - Add explicit vocabulary refresh with stale-entry pruning, retained spelling/comments, dictionary-alias exclusion, and atomic replacement guarded against concurrent edits.
 - Optionally check tagged JS/TS fences in Markdown and code documentation, preserving nested source coordinates and report-only runtime scopes.

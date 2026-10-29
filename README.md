@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/test.yml/badge.svg)](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/test.yml) [![Lint](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/lint.yml/badge.svg)](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/lint.yml) [![Coverage](https://coveralls.io/repos/github/dblock/prettier-plugin-spellcheck/badge.svg?branch=main)](https://coveralls.io/github/dblock/prettier-plugin-spellcheck?branch=main)
 
-Markdown, plain-text, and JavaScript/TypeScript spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell.
+Markdown, HTML, plain-text, and JavaScript/TypeScript spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell.
 
 Requires Node.js 22.18 or later and Prettier 3.7 or later (3.x).
 
@@ -19,7 +19,7 @@ The package is not yet published to npm; install from GitHub for now.
 No spelling configuration is required. Load the plugin on the command line:
 
 ```sh
-npx prettier --plugin prettier-plugin-spellcheck --check "**/*.{md,txt,js,jsx,ts,tsx}"
+npx prettier --plugin prettier-plugin-spellcheck --check "**/*.{md,html,txt,js,jsx,ts,tsx}"
 ```
 
 Alternatively, register it in your normal Prettier configuration:
@@ -30,7 +30,7 @@ Alternatively, register it in your normal Prettier configuration:
 }
 ```
 
-Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Markdown and plain-text prose, code comments, and user-facing JSX text are checked by default. MDX is not supported.
+Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Markdown, HTML, and plain-text prose, code comments, and user-facing JSX text are checked by default. MDX is not supported.
 
 ## Configuration
 
@@ -109,17 +109,17 @@ No dictionary discovery, network requests, CSpell configuration imports, or Huns
 Collect unknown words, review the candidates to remove actual typos, and add the reviewed dictionary:
 
 ```sh
-npx prettier-plugin-spellcheck collect "**/*.{md,txt,js,jsx,ts,tsx}" --output .spellcheck.txt
+npx prettier-plugin-spellcheck collect "**/*.{md,html,txt,js,jsx,ts,tsx}" --output .spellcheck.txt
 # Edit .spellcheck.txt: keep only words you want to accept.
 npx prettier-plugin-spellcheck add ./.spellcheck.txt
 ```
 
-`collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It checks Markdown, plain text, and supported code files using the same scope settings as formatting, and skips unsupported languages and MDX. Configured vocabulary files and the selected output are excluded from inputs. It never changes source files; without `--refresh`, it never overwrites an existing candidate file. Collection does not compute suggestions.
+`collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It checks Markdown, HTML, plain text, and supported code files using the same scope settings as formatting, and skips unsupported languages and MDX. Configured vocabulary files and the selected output are excluded from inputs. It never changes source files; without `--refresh`, it never overwrites an existing candidate file. Collection does not compute suggestions.
 
 To explicitly rebuild an existing vocabulary, inspired by rubocop-spellcheck:
 
 ```sh
-npx prettier-plugin-spellcheck collect "**/*.{md,txt,js,jsx,ts,tsx}" --output .spellcheck.txt --refresh
+npx prettier-plugin-spellcheck collect "**/*.{md,html,txt,js,jsx,ts,tsx}" --output .spellcheck.txt --refresh
 ```
 
 `--refresh` ignores the selected vocabulary while checking, including aliases to that file, but retains all other dictionaries and suppression rules. It removes obsolete entries, preserves comments and the original spelling/order of retained entries, and appends sorted new candidates. **Scan the full intended project and review new candidates for typos:** partial scans can remove words still used elsewhere. An existing regular `.txt` output is required; symbolic links, concurrent edits, failed scans, and wholly disabled input sets are rejected without replacing the vocabulary. A successful scan with no unknown words clears obsolete entries while retaining comments. Source and configuration files are never rewritten.
@@ -193,12 +193,22 @@ The plugin checks `.txt` and `.text` files literally, inspired by [dylint-spellc
 
 Plain-text formatting preserves spacing, indentation, and final newlines instead of applying Markdown formatting. Normal Prettier line-ending options still apply, and opt-in autocorrection uses the same conservative rules. Configured `.txt` vocabulary files are excluded from spelling and remain unchanged.
 
+## HTML
+
+Standalone HTML is checked through Prettier's public `html` parser. Text content, including page titles, and literal `alt`, `title`, `placeholder`, `aria-label`, and `aria-description` attributes are checked by default. Structural attributes such as `class`, `id`, `src`, and `href` are not prose.
+
+Scripts, styles, `code`, `pre`, `kbd`, `samp`, `template`, elements with the `hidden` attribute, front matter, and ordinary comment text are excluded. YAML front matter checking is Markdown-only. Template expressions and Liquid tags are skipped, never evaluated. CSS visibility is not computed. HTML-comment spelling directives and Prettier's `prettier-ignore`/`prettier-ignore-attribute` comments are honored.
+
+Entities are decoded using parser tokens, with original source coordinates preserved. Text can use conservative opt-in autocorrection, but words containing encoded entities or split across inline elements are report-only because rewriting their source could change markup. Attributes are always report-only. Scripts and styles still receive ordinary Prettier formatting without embedded spelling checks.
+
+Set `html: false` in your spelling settings to disable HTML checking. Raw HTML and HTML fences inside Markdown remain excluded; the `angular`, `vue`, `lwc`, and `mjml` parsers are not included in this support.
+
 ## Corrections
 
 Set `autocorrect` to `true` in your spelling settings, then run:
 
 ```sh
-npx prettier --plugin prettier-plugin-spellcheck --write "**/*.{md,txt,js,jsx,ts,tsx}"
+npx prettier --plugin prettier-plugin-spellcheck --write "**/*.{md,html,txt,js,jsx,ts,tsx}"
 ```
 
 Corrections are opt-in. A lowercase or title-case word is only replaced when the dictionary-valid first suggestion is one letter edit or transposition away. ALL CAPS, mixed case, and words inside dotted, hyphenated, or identifier-like tokens are not automatically corrected.
@@ -211,7 +221,7 @@ Standard Prettier overrides are supported, including switching between inline an
 
 ## Scope
 
-Uses Prettier's public language ASTs and CSpell dictionaries directly. Markdown checking covers headings, paragraphs, lists, quotes, tables, link labels, image descriptions, and string values in YAML front matter. Markdown code blocks are skipped unless tagged-code checking is enabled. HTML, link destinations, URLs, email addresses, and entity-encoded word fragments are skipped.
+Uses Prettier's public language ASTs and CSpell dictionaries directly. Markdown checking covers headings, paragraphs, lists, quotes, tables, link labels, image descriptions, and string values in YAML front matter. Markdown code blocks are skipped unless tagged-code checking is enabled. Raw HTML within Markdown, link destinations, URLs, email addresses, and entity-encoded word fragments are skipped.
 
 Use `<!-- spellcheck-disable -->` and `<!-- spellcheck-enable -->` to suppress spelling in a region. The `spellcheck-disable-file`, `spellcheck-disable-line`, and `spellcheck-disable-next-line` variants are also supported. Existing `<!-- markdownlint-disable spellcheck -->` comments remain compatible without loading markdownlint.
 
@@ -221,7 +231,7 @@ Prettier's `<!-- prettier-ignore -->` directive skips the next Markdown node for
 
 Unicode words, accented letters, apostrophes, and original UTF-16 source coordinates are supported. Curly apostrophes also try straight-apostrophe dictionary lookup without ignoring vocabulary capitalization; corrections preserve the original apostrophe style. Liquid expressions (`{{ ... }}`) and tags (`{% ... %}`), including multiline forms, are excluded from Markdown spelling checks; surrounding prose is checked. Ordinary formatting remains delegated to Prettier.
 
-The plugin wraps Prettier's built-in Markdown and supported code parsers. Plugins that also replace these parsers are not automatically composable; load order alone does not guarantee both transformations run.
+The plugin wraps Prettier's built-in Markdown, HTML, and supported code parsers. Plugins that also replace these parsers are not automatically composable; load order alone does not guarantee both transformations run.
 
 ## Contributing and releasing
 

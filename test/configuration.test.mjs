@@ -85,6 +85,7 @@ test("reports invalid inline options, serialized settings and missing dictionary
     [{ dictionaryFiles: ["./words.txt"] }, /Unknown spellcheck option/u],
     [{ autocorrect: "true" }, /autocorrect must be a boolean/u],
     [{ enabled: 1 }, /enabled must be a boolean/u],
+    [{ html: {} }, /html must be a boolean/u],
     [{ dictionaries: [] }, /nonempty array/u],
     [{ dictionaries: { en: ["@cspell/dict-en_us"] } }, /nonempty array/u],
     [{ dictionaries: [""] }, /nonempty array/u],

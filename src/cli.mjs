@@ -53,7 +53,7 @@ async function collect(patterns, values) {
       })) || {};
     const parser = config.parser ?? info.inferredParser;
     if (
-      !["markdown", textParser].includes(parser) &&
+      !["markdown", "html", textParser].includes(parser) &&
       !Object.hasOwn(codeParsers, parser)
     ) {
       continue;
@@ -63,6 +63,7 @@ async function collect(patterns, values) {
     if (
       values.refresh &&
       (!settings.enabled ||
+        (parser === "html" && !settings.html) ||
         (Object.hasOwn(codeParsers, parser) &&
           !["comments", "jsx", "strings", "identifiers"].some(
             (scope) => settings.code[scope],
@@ -89,7 +90,7 @@ async function collect(patterns, values) {
     throw new Error(
       values.refresh
         ? "No enabled spelling inputs matched; vocabulary was not refreshed."
-        : "No non-ignored Markdown, plain-text, or supported code files matched the supplied patterns.",
+        : "No non-ignored Markdown, HTML, plain-text, or supported code files matched the supplied patterns.",
     );
   }
   writeCandidates(values.output, words, snapshot);

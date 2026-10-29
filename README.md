@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/test.yml/badge.svg)](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/test.yml) [![Lint](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/lint.yml/badge.svg)](https://github.com/dblock/prettier-plugin-spellcheck/actions/workflows/lint.yml) [![Coverage](https://coveralls.io/repos/github/dblock/prettier-plugin-spellcheck/badge.svg?branch=main)](https://coveralls.io/github/dblock/prettier-plugin-spellcheck?branch=main)
 
-Markdown and JavaScript/TypeScript spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell.
+Markdown, plain-text, and JavaScript/TypeScript spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell.
 
 Requires Node.js 22.18 or later and Prettier 3.7 or later (3.x).
 
@@ -19,7 +19,7 @@ The package is not yet published to npm; install from GitHub for now.
 No spelling configuration is required. Load the plugin on the command line:
 
 ```sh
-npx prettier --plugin prettier-plugin-spellcheck --check "**/*.{md,js,jsx,ts,tsx}"
+npx prettier --plugin prettier-plugin-spellcheck --check "**/*.{md,txt,js,jsx,ts,tsx}"
 ```
 
 Alternatively, register it in your normal Prettier configuration:
@@ -30,7 +30,7 @@ Alternatively, register it in your normal Prettier configuration:
 }
 ```
 
-Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Markdown prose, code comments, and user-facing JSX text are checked by default. MDX is not supported.
+Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Markdown and plain-text prose, code comments, and user-facing JSX text are checked by default. MDX is not supported.
 
 ## Configuration
 
@@ -109,12 +109,12 @@ No dictionary discovery, network requests, CSpell configuration imports, or Huns
 Collect unknown words, review the candidates to remove actual typos, and add the reviewed dictionary:
 
 ```sh
-npx prettier-plugin-spellcheck collect "**/*.{md,js,jsx,ts,tsx}" --output .spellcheck.txt
+npx prettier-plugin-spellcheck collect "**/*.{md,txt,js,jsx,ts,tsx}" --output .spellcheck.txt
 # Edit .spellcheck.txt: keep only words you want to accept.
 npx prettier-plugin-spellcheck add ./.spellcheck.txt
 ```
 
-`collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It checks Markdown and supported code files using the same scope settings as formatting, and skips unsupported languages and MDX. It never changes input files or overwrites an existing candidate file. Collection does not compute suggestions.
+`collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It checks Markdown, plain text, and supported code files using the same scope settings as formatting, and skips unsupported languages and MDX. Configured vocabulary files and the selected output are excluded from inputs. It never changes input files or overwrites an existing candidate file. Collection does not compute suggestions.
 
 Use `--config path/to/prettier.config.mjs` to select an explicit Prettier configuration. Otherwise the commands discover the normal Prettier configuration; `collect` also applies each file's overrides.
 
@@ -172,12 +172,18 @@ Set `code: false` to retain Markdown checking without checking code. Individual 
 
 Native code comments support `// spellcheck-disable`, `// spellcheck-enable`, `// spellcheck-disable-file`, `// spellcheck-disable-line`, and `// spellcheck-disable-next-line`, including block-comment forms. `// prettier-ignore` also excludes the following AST node from spelling. Directive-looking text inside string literals does not control spelling.
 
+## Plain text
+
+The plugin checks `.txt` and `.text` files literally, inspired by [dylint-spellcheck](https://github.com/dblock/dylint-spellcheck). Backticks, markup, Liquid, and directive-looking text have no special meaning; URLs, email addresses, and identifier-like tokens are still skipped. Use `--parser spellcheck-text` for documents without an extension.
+
+Plain-text formatting preserves spacing, indentation, and final newlines instead of applying Markdown formatting. Normal Prettier line-ending options still apply, and opt-in autocorrection uses the same conservative rules. Configured `.txt` vocabulary files are excluded from spelling and remain unchanged.
+
 ## Corrections
 
 Set `autocorrect` to `true` in your spelling settings, then run:
 
 ```sh
-npx prettier --plugin prettier-plugin-spellcheck --write "**/*.{md,js,jsx,ts,tsx}"
+npx prettier --plugin prettier-plugin-spellcheck --write "**/*.{md,txt,js,jsx,ts,tsx}"
 ```
 
 Corrections are opt-in. A lowercase or title-case word is only replaced when the dictionary-valid first suggestion is one letter edit or transposition away. ALL CAPS, mixed case, and words inside dotted, hyphenated, or identifier-like tokens are not automatically corrected.

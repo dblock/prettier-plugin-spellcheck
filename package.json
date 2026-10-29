@@ -1,7 +1,7 @@
 {
   "name": "prettier-plugin-spellcheck",
   "version": "0.1.0",
-  "description": "Markdown and JS/TS spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell.",
+  "description": "Markdown, plain-text, and JS/TS spelling checks with opt-in prose autocorrection for Prettier, powered by CSpell.",
   "type": "module",
   "main": "src/index.mjs",
   "exports": "./src/index.mjs",
@@ -23,6 +23,7 @@
     "prettier",
     "prettier-plugin",
     "markdown",
+    "plaintext",
     "javascript",
     "typescript",
     "jsx",

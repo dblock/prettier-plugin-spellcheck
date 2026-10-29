@@ -2,6 +2,9 @@ import { parsers as markdownParsers } from "prettier/plugins/markdown";
 import { loadSettings, spellingSettings } from "./configuration.mjs";
 import { applyCorrections, checkSource, describeIssue } from "./spelling.mjs";
 import { codeParsers } from "./code.mjs";
+import { languages, parsers as textParsers, printers } from "./text.mjs";
+
+export { languages, printers };
 
 export const options = {
   spellcheck: {
@@ -27,7 +30,8 @@ async function preprocess(text, options, parser, original) {
       : errors;
     if (unresolved.length) {
       const location =
-        options.filepath || `<${parser === "markdown" ? "markdown" : "code"}>`;
+        options.filepath ||
+        `<${parser === "markdown" ? "markdown" : parser === "spellcheck-text" ? "text" : "code"}>`;
       const details = unresolved.map(
         (error) =>
           `${location}:${error.line}:${error.column} ${describeIssue(error)}`,
@@ -50,6 +54,7 @@ export const parsers = {
     Object.entries({
       markdown: markdownParsers.markdown,
       ...codeParsers,
+      ...textParsers,
     }).map(([name, parser]) => [
       name,
       {
@@ -60,7 +65,7 @@ export const parsers = {
   ),
 };
 
-const plugin = { options, parsers };
+const plugin = { options, parsers, languages, printers };
 export default plugin;
 
 function inlineOptions(options) {

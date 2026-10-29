@@ -6,10 +6,12 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { getFileInfo, resolveConfig, resolveConfigFile } from "prettier";
 import { checkSource } from "./spelling.mjs";
-import { getDictionary } from "./dictionaries.mjs";
+import { getDictionary, isDictionaryFile } from "./dictionaries.mjs";
 import { addDictionary } from "./update-config.mjs";
 import { loadSettings } from "./configuration.mjs";
 import { codeParsers } from "./code.mjs";
+import plugin from "./index.mjs";
+import { textParser } from "./text.mjs";
 
 const usage = `Usage: prettier-plugin-spellcheck collect <globs...> [--output .spellcheck.txt] [--config prettier.config.mjs]
        prettier-plugin-spellcheck add <dictionary.txt> [--config prettier.config.mjs]`;
@@ -23,12 +25,14 @@ async function collect(patterns, values) {
   for await (const file of glob(patterns, {
     exclude: ["**/node_modules/**", "**/.git/**"],
   })) {
+    if (resolve(file) === resolve(values.output)) continue;
     if (!(await stat(file)).isFile()) {
       continue;
     }
     const info = await getFileInfo(file, {
       ignorePath: [".gitignore", ".prettierignore"],
       resolveConfig: false,
+      plugins: [plugin],
     });
     if (info.ignored) {
       continue;
@@ -39,13 +43,18 @@ async function collect(patterns, values) {
         ...(values.config ? { config: resolve(values.config) } : {}),
       })) || {};
     const parser = config.parser ?? info.inferredParser;
-    if (parser !== "markdown" && !Object.hasOwn(codeParsers, parser)) {
+    if (
+      !["markdown", textParser].includes(parser) &&
+      !Object.hasOwn(codeParsers, parser)
+    ) {
       continue;
     }
+    const settings = loadSettings(config);
+    if (isDictionaryFile(settings.dictionaries, file)) continue;
     matched++;
     for (const issue of await checkSource(
       readFileSync(file, "utf8"),
-      loadSettings(config),
+      settings,
       {
         ...config,
         parser,
@@ -58,7 +67,7 @@ async function collect(patterns, values) {
   }
   if (!matched) {
     throw new Error(
-      "No non-ignored Markdown or supported code files matched the supplied patterns.",
+      "No non-ignored Markdown, plain-text, or supported code files matched the supplied patterns.",
     );
   }
   writeFileSync(

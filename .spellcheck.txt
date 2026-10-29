@@ -7,6 +7,7 @@ TSDoc
 TSX
 UTF
 autocorrection
+dylint
 js
 md
 rubocop

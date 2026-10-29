@@ -3,6 +3,7 @@
 ## 0.1.0 (Next)
 
 - Your contribution here.
+- Check literal plain-text documents through a layout-preserving Prettier parser and vocabulary collection, excluding configured vocabulary resources.
 - Support suppression reasons, rule lists, colon and todo directives, and isolated documentation scopes without interpreting directives in excluded examples or templates.
 - Recognize typographic apostrophes in project vocabulary and preserve apostrophe style during conservative corrections.
 - Spellcheck JavaScript, TypeScript, Flow, JSX, and TSX prose using Prettier ASTs, with comment autocorrection, optional report-only strings and identifiers, and code vocabulary collection.

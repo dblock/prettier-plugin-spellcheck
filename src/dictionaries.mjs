@@ -13,6 +13,11 @@ const packages = new Map();
 const suggestions = new WeakMap();
 export const wordOnly = /^\p{L}[\p{L}\p{M}]*(?:['’]\p{L}[\p{L}\p{M}]*)*$/u;
 export const normalizeApostrophes = (word) => word.replaceAll("\u2019", "'");
+export const isDictionaryFile = (entries, filepath) =>
+  typeof filepath === "string" &&
+  entries.some(
+    (entry) => entry.endsWith(".txt") && resolve(entry) === resolve(filepath),
+  );
 
 function vocabulary(path) {
   return readFileSync(path, "utf8")

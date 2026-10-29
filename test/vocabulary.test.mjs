@@ -79,9 +79,25 @@ test("collect never overwrites candidates or creates output for unmatched patter
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /No non-ignored Markdown or supported code files/u,
+    /No non-ignored Markdown, plain-text, or supported code files/u,
   );
   assert.equal(existsSync(join(directory, "missing.txt")), false);
+});
+
+test("collect infers plain text and excludes configured dictionaries and its own output", (t) => {
+  const { write, read, run } = fixture(t);
+  write(
+    "spellcheck.json",
+    JSON.stringify({ dictionaries: ["@cspell/dict-en_us", "./words.txt"] }),
+  );
+  write("words.txt", "# qzxdictionarycomment\nqzxwidget\n");
+  write("example.txt", "`qzxliteral` qzxwidget helo\n");
+  const result = run("collect", "*.txt");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nhelo\nqzxliteral\n",
+  );
 });
 
 test("collect rejects invalid nested spelling options before creating output", (t) => {

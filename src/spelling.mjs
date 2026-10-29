@@ -1,17 +1,20 @@
 import { parsers } from "prettier/plugins/markdown";
 import {
   getDictionary,
+  isDictionaryFile,
   normalizeApostrophes,
   wordOnly,
 } from "./dictionaries.mjs";
 import { spellingSettings } from "./configuration.mjs";
 import { frontMatterSpans } from "./front-matter.mjs";
 import { codeParsers, codeSpans } from "./code.mjs";
+import { textParser } from "./text.mjs";
 
 const wordPattern =
   /[\p{L}\p{M}\p{N}\p{Pc}]+(?:['’][\p{L}\p{M}\p{N}\p{Pc}]+)*/gu;
 const nonProse =
-  /(?:https?:\/\/|mailto:|www\.)[^\s<>]+|[\p{L}\p{N}_.+-]+@[\p{L}\p{N}_.-]+|&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/giu;
+  /(?:https?:\/\/|mailto:|www\.)[^\s<>]+|[\p{L}\p{N}_.+-]+@[\p{L}\p{N}_.-]+/giu;
+const entities = /&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/giu;
 const overlaps = (ranges, start, end) =>
   ranges.some(([first, last]) => start < last && end > first);
 const directive = (node, name) =>
@@ -310,13 +313,28 @@ export async function checkSource(
   if (!settings.enabled) {
     return [];
   }
-  if (parser !== "markdown" && !Object.hasOwn(codeParsers, parser)) {
+  if (
+    !["markdown", textParser].includes(parser) &&
+    !Object.hasOwn(codeParsers, parser)
+  ) {
     throw new Error(`Unsupported spelling parser: ${parser}.`);
+  }
+  if (
+    parser === textParser &&
+    isDictionaryFile(settings.dictionaries, parserOptions.filepath)
+  ) {
+    return [];
   }
   const dictionary = getDictionary(settings.dictionaries);
   const context = Object.hasOwn(codeParsers, parser)
     ? await codeSpans(text, parser, parserOptions, settings.code)
-    : await markdownSpans(text, settings.frontMatter);
+    : parser === textParser
+      ? {
+          spans: [{ start: 0, end: text.length, literal: true }],
+          ignored: [],
+          comments: [],
+        }
+      : await markdownSpans(text, settings.frontMatter);
   const { spans, ignored, comments } = context;
   const nativeIgnored = [];
   for (const source of context.prose || []) {
@@ -370,10 +388,10 @@ export async function checkSource(
   const issues = [];
   for (const span of spans) {
     const raw = span.text ?? text.slice(span.start, span.end);
-    const excluded = [...raw.matchAll(nonProse)].map((match) => [
-      match.index,
-      match.index + match[0].length,
-    ]);
+    const excluded = [
+      ...raw.matchAll(nonProse),
+      ...(span.literal ? [] : raw.matchAll(entities)),
+    ].map((match) => [match.index, match.index + match[0].length]);
     for (const match of raw.matchAll(wordPattern)) {
       const word = match[0];
       const first = match.index;
@@ -390,8 +408,9 @@ export async function checkSource(
         suppressed(location.line, offset) ||
         overlaps(excluded, first, last) ||
         overlaps(ignored, offset, sourceEnd) ||
-        /&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);$/iu.test(raw.slice(0, first)) ||
-        /^&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/iu.test(raw.slice(last)) ||
+        (!span.literal &&
+          (/&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);$/iu.test(raw.slice(0, first)) ||
+            /^&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);/iu.test(raw.slice(last)))) ||
         dictionary.has(word)
       ) {
         continue;

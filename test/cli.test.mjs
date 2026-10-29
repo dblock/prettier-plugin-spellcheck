@@ -51,6 +51,19 @@ test("Prettier CLI check reports spelling failures and leaves files untouched", 
   assert.equal(readFileSync(file, "utf8"), source);
 });
 
+test("Prettier CLI infers literal plain text and preserves its layout while correcting", (t) => {
+  const source = "  helo  \n\n\tworld";
+  const { file, run } = fixture(
+    t,
+    source,
+    { spellcheck: { autocorrect: true } },
+    "example.txt",
+  );
+  const result = run("--write");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(file, "utf8"), source.replace("helo", "hello"));
+});
+
 test("Prettier CLI writes enabled corrections and then passes check", (t) => {
   const { file, run } = fixture(t, "#  helo\n", {
     spellcheck: { autocorrect: true },

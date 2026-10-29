@@ -1,7 +1,7 @@
 # Contributor instructions
 
 - Support Node.js 22.18+ and Prettier 3.7+ (3.x).
-- Use Prettier's public Markdown parser and CSpell dictionary APIs directly. Do not depend on markdownlint or markdownlint-rule-spellcheck at runtime.
+- Use Prettier's public Markdown parser and CSpell dictionary APIs directly. Do not add markdownlint or markdownlint-rule-spellcheck dependencies, including development dependencies. Use Prettier with this plugin for documentation checks.
 - Keep dictionaries offline. Missing or invalid configuration must fail explicitly.
 - Autocorrection is opt-in. If any remaining spelling issue needs manual review, do not format that file.
 - Preserve Prettier's ordinary Markdown printing and user formatting options. Do not spellcheck source code or MDX.

@@ -13,10 +13,10 @@ const format = (source, options = {}) =>
   });
 
 test("preserves Unicode and UTF-16 fix positions with CRLF and inline markup", async () => {
-  const source = "# 😀 café **helo**\r\n\r\n> \thelo\r\n";
+  const source = "# 😀 café **helo**\r\n\r\n> helo\r\n\r\nHello\thelo\r\n";
   assert.equal(
     await format(source, { endOfLine: "crlf" }),
-    "# 😀 café **hello**\r\n\r\n> hello\r\n",
+    "# 😀 café **hello**\r\n\r\n> hello\r\n\r\nHello hello\r\n",
   );
   await assert.rejects(
     format("😀 xqzvvv\n"),

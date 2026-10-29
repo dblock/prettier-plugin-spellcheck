@@ -201,7 +201,7 @@ This adapts tagged-code checking from rubocop-spellcheck. Untagged fences, other
 
 ## Plain text
 
-The plugin checks `.txt` and `.text` files literally, inspired by [dylint-spellcheck](https://github.com/dblock/dylint-spellcheck). Backticks, markup, Liquid, and directive-looking text have no special meaning; URLs, email addresses, and identifier-like tokens are still skipped. Use `--parser spellcheck-text` for documents without an extension.
+The plugin checks `.txt` and `.text` files literally. Backticks, markup, Liquid, and directive-looking text have no special meaning; URLs, email addresses, and identifier-like tokens are still skipped. Use `--parser spellcheck-text` for documents without an extension.
 
 Plain-text formatting preserves spacing, indentation, and final newlines instead of applying Markdown formatting. Normal Prettier line-ending options still apply, and opt-in autocorrection uses the same conservative rules. Configured `.txt` vocabulary files are excluded from spelling and remain unchanged.
 

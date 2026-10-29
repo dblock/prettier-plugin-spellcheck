@@ -37,7 +37,10 @@ async function preprocess(text, options, parser, original) {
         (error) =>
           `${location}:${error.line}:${error.column} ${describeIssue(error)}`,
       );
-      throw new Error(`Spelling check failed.\n${details.join("\n")}`);
+      const error = new Error(`Spelling check failed.\n${details.join("\n")}`);
+      // Prettier prints error.stack; expected diagnostics need no call frames.
+      error.stack = error.message;
+      throw error;
     }
     if (settings.autocorrect) {
       corrected = applyCorrections(text, errors);

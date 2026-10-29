@@ -36,10 +36,11 @@ Example run:
 printf '# helo\n' | npx prettier --plugin prettier-plugin-spellcheck --stdin-filepath example.md
 ```
 
-Simplified output:
+Output (paths shortened):
 
 ```text
-example.md:1:3 Misspelled word: "helo". Suggestions: hello, helio, halo.
+[error] example.md: Spelling check failed.
+[error] example.md:1:3 Misspelled word: "helo". Suggestions: hello, helio, halo.
 ```
 
 ## Configuration

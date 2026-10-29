@@ -48,6 +48,37 @@ test("Prettier CLI check reports spelling failures and leaves files untouched", 
   const result = run("--check");
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stderr, /example\.md:1:3 Misspelled word: "helo"/u);
+  assert.doesNotMatch(result.stderr, /^\[error\]\s+at /mu);
+  assert.equal(readFileSync(file, "utf8"), source);
+});
+
+test("Prettier CLI stdin reports every spelling error without a stack or formatted output", (t) => {
+  const source = "# helo mispelled\n";
+  const { directory, file } = fixture(t, source, null);
+  const result = spawnSync(
+    process.execPath,
+    [
+      prettierBin,
+      "--plugin",
+      fileURLToPath(pluginURL),
+      "--stdin-filepath",
+      "example.md",
+    ],
+    { cwd: directory, input: source, encoding: "utf8" },
+  );
+  assert.equal(result.status, 2, result.stderr);
+  assert.equal(result.stdout, "");
+  const lines = result.stderr.trimEnd().split("\n");
+  assert.equal(lines.length, 3, result.stderr);
+  assert.equal(lines[0], "[error] example.md: Spelling check failed.");
+  assert.match(
+    lines[1],
+    /example\.md:1:3 Misspelled word: "helo". Suggestions:/u,
+  );
+  assert.match(
+    lines[2],
+    /example\.md:1:8 Misspelled word: "mispelled". Suggestions:/u,
+  );
   assert.equal(readFileSync(file, "utf8"), source);
 });
 

@@ -9,6 +9,7 @@ import { spellingSettings } from "./configuration.mjs";
 import { frontMatterSpans } from "./front-matter.mjs";
 import { codeParsers, codeSpans } from "./code.mjs";
 import { textParser } from "./text.mjs";
+import { fenceSource } from "./fences.mjs";
 
 const wordPattern =
   /[\p{L}\p{M}\p{N}\p{Pc}]+(?:['’][\p{L}\p{M}\p{N}\p{Pc}]+)*/gu;
@@ -125,12 +126,13 @@ function imageLabel(text, node) {
   throw new Error("Cannot locate Markdown image description.");
 }
 
-async function markdownSpans(text, frontMatter) {
+async function markdownSpans(text, frontMatter, checkFences = false) {
   const ast = await parsers.markdown.parse(text, { parser: "markdown" });
   const spans = [];
   const ignored = [];
   const code = [];
   const comments = [];
+  const fences = [];
   async function visit(node, base = 0) {
     const start = base + node.position.start.offset;
     const end = base + node.position.end.offset;
@@ -138,6 +140,10 @@ async function markdownSpans(text, frontMatter) {
       spans.push(...frontMatterSpans(text, node, frontMatter));
     } else if (node.type === "code" || node.type === "inlineCode") {
       code.push([start, end]);
+      if (checkFences && node.type === "code") {
+        const fence = fenceSource(text, node, start, end);
+        if (fence) fences.push(fence);
+      }
     } else if (node.type === "text") {
       spans.push({ start, end });
     } else if (node.type === "html") {
@@ -211,6 +217,7 @@ async function markdownSpans(text, frontMatter) {
     spans,
     ignored,
     comments,
+    fences,
     directiveIgnored: [
       ...code,
       ...comments.map((comment) => [
@@ -334,17 +341,24 @@ export async function checkSource(
           ignored: [],
           comments: [],
         }
-      : await markdownSpans(text, settings.frontMatter);
+      : await markdownSpans(text, settings.frontMatter, settings.code.fences);
   const { spans, ignored, comments } = context;
+  const fences = context.fences || [];
   const nativeIgnored = [];
   for (const source of context.prose || []) {
+    nativeIgnored.push(...source.directiveIgnored);
     if (!source.mapping.length) continue;
-    const parsed = await markdownSpans(source.text, false);
+    const parsed = await markdownSpans(
+      source.text,
+      false,
+      settings.code.fences && source.enabled,
+    );
     const scope = {
       start: source.mapping[0].start,
       end: source.mapping.at(-1).end,
     };
     for (const span of parsed.spans) {
+      if (!source.enabled) continue;
       spans.push({
         ...span,
         text: source.text.slice(span.start, span.end),
@@ -375,6 +389,17 @@ export async function checkSource(
           source.mapping[start].start,
           source.mapping[end - 1].end,
         ]);
+    }
+    for (const fence of parsed.fences) {
+      fences.push({
+        ...fence,
+        start: source.mapping[fence.start].start,
+        end: source.mapping[fence.end - 1].end,
+        mapping: fence.mapping.map(({ start, end }) => ({
+          start: source.mapping[start].start,
+          end: source.mapping[Math.max(start, end - 1)].end,
+        })),
+      });
     }
   }
   const offsets = lineStarts(text);
@@ -440,6 +465,59 @@ export async function checkSource(
         ...location,
         suggestions: candidates,
         replacement: fix,
+      });
+    }
+  }
+  for (const fence of fences) {
+    if (
+      !fence.text ||
+      ignored.some(
+        ([first, last]) => first <= fence.start && last >= fence.end,
+      ) ||
+      lineStarts(fence.text)
+        .filter((offset) => offset < fence.mapping.length)
+        .every((offset) => {
+          const first = fence.mapping[offset].start;
+          return suppressed(position(offsets, first).line, first);
+        })
+    ) {
+      continue;
+    }
+    let findings;
+    try {
+      findings = await checkSource(
+        fence.text,
+        { ...settings, code: { ...settings.code, fences: false } },
+        {
+          ...parserOptions,
+          parser: fence.parser,
+          filepath: `${parserOptions.filepath || "fence"}.${fence.language}`,
+          suggestions,
+        },
+      );
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      throw new Error(
+        `Invalid ${fence.language} code fence at line ${position(offsets, fence.start).line}: ${error.message}`,
+        { cause: error },
+      );
+    }
+    for (const issue of findings) {
+      const offset = fence.mapping[issue.offset].start;
+      const end = fence.mapping[issue.offset + issue.length - 1].end;
+      const location = position(offsets, offset);
+      if (suppressed(location.line, offset) || overlaps(ignored, offset, end)) {
+        continue;
+      }
+      issues.push({
+        ...issue,
+        offset,
+        length: end - offset,
+        ...location,
+        replacement:
+          text.slice(offset, end) === issue.word
+            ? issue.replacement
+            : undefined,
       });
     }
   }

@@ -236,4 +236,14 @@ test("documentation directives stay in their comment group and examples cannot c
     (await check(source)).map(({ word }) => word),
     ["helo", "helo"],
   );
+  const example =
+    '/**\n * @example\n * // spellcheck-disable-file\n */\nconst value = "helo";\n';
+  for (const comments of [true, false]) {
+    assert.deepEqual(
+      (await check(example, { code: { comments, strings: true } })).map(
+        ({ word }) => word,
+      ),
+      ["helo"],
+    );
+  }
 });

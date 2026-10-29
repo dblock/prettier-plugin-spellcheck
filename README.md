@@ -147,7 +147,7 @@ Prettier exposes language-specific ASTs through its public parsers. The plugin u
 
 Comments and visible JSX text are checked by default. Literal `alt`, `title`, `placeholder`, `aria-label`, and `aria-description` attributes are checked too. JSX expressions, structural attributes such as `className` and `src`, and other programmatic strings are excluded by default.
 
-Comments are parsed as Markdown, combining adjacent line comments so code fences work. Inline code, fenced and indented examples, links' destinations, JSDoc/TSDoc tag names, types, parameter names, and `@example` code are skipped. Documentation descriptions and link labels are checked. Tooling directives, shebangs, and source map references are excluded.
+Comments are parsed as Markdown, combining adjacent line comments so code fences work. Inline code, fenced and indented examples, links' destinations, JSDoc/TSDoc tag names, types, parameter names, and `@example` code are skipped by default. Documentation descriptions and link labels are checked. Tooling directives, shebangs, and source map references are excluded.
 
 Inspired by [rubocop-spellcheck](https://github.com/dblock/rubocop-spellcheck), strings and identifiers can be enabled separately. In `spellcheck.json`, an explicit spelling configuration, or the helper's nested `spellcheck` object:
 
@@ -157,7 +157,8 @@ Inspired by [rubocop-spellcheck](https://github.com/dblock/rubocop-spellcheck), 
     "comments": true,
     "jsx": true,
     "strings": false,
-    "identifiers": false
+    "identifiers": false,
+    "fences": false
   }
 }
 ```
@@ -168,9 +169,15 @@ Inspired by [rubocop-spellcheck](https://github.com/dblock/rubocop-spellcheck), 
 
 Strings, attributes, and identifiers are **report-only**, even with autocorrection enabled: changing runtime text or renaming one occurrence can break behavior or external APIs. Comment prose and literal JSX text can use conservative autocorrection. If any report-only spelling error remains, the entire file is left untouched.
 
-Set `code: false` to retain Markdown checking without checking code. Individual scope flags can also be disabled. Other Prettier languages, MDX, and Markdown code fences remain outside this code support.
+Set `code: false` to retain Markdown checking without checking code. Individual scope flags can also be disabled. Other Prettier languages and MDX remain outside this code support.
 
 Native code comments support `// spellcheck-disable`, `// spellcheck-enable`, `// spellcheck-disable-file`, `// spellcheck-disable-line`, and `// spellcheck-disable-next-line`, including block-comment forms. `// prettier-ignore` also excludes the following AST node from spelling. Directive-looking text inside string literals does not control spelling.
+
+### Tagged code fences
+
+Set `code.fences: true` to check explicitly tagged JavaScript/TypeScript fences in Markdown documents and code documentation. Supported labels are `js`, `javascript`, `jsx`, `mjs`, `cjs`, `ts`, `typescript`, `tsx`, and `flow`, case-insensitively. The same comment, JSX, string, and identifier scope settings apply; strings and identifiers still cannot be corrected automatically.
+
+This adapts tagged-code checking from rubocop-spellcheck. Untagged fences, other languages, indented code, inline code, and `@example` blocks remain excluded. Diagnostics map back through list/quote prefixes and original line endings. Directives inside a fence cannot suppress surrounding prose. Invalid selected snippets are errors; suppress or ignore the entire fence to leave an intentionally incomplete example unchecked.
 
 ## Plain text
 
@@ -196,7 +203,7 @@ Standard Prettier overrides are supported, including switching between inline an
 
 ## Scope
 
-Uses Prettier's public language ASTs and CSpell dictionaries directly. Markdown checking covers headings, paragraphs, lists, quotes, tables, link labels, image descriptions, and string values in YAML front matter. Markdown code blocks, HTML, link destinations, URLs, email addresses, and entity-encoded word fragments are skipped.
+Uses Prettier's public language ASTs and CSpell dictionaries directly. Markdown checking covers headings, paragraphs, lists, quotes, tables, link labels, image descriptions, and string values in YAML front matter. Markdown code blocks are skipped unless tagged-code checking is enabled. HTML, link destinations, URLs, email addresses, and entity-encoded word fragments are skipped.
 
 Use `<!-- spellcheck-disable -->` and `<!-- spellcheck-enable -->` to suppress spelling in a region. The `spellcheck-disable-file`, `spellcheck-disable-line`, and `spellcheck-disable-next-line` variants are also supported. Existing `<!-- markdownlint-disable spellcheck -->` comments remain compatible without loading markdownlint.
 

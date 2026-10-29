@@ -139,11 +139,13 @@ export function spellingSettings(value) {
     }
     for (const [key, enabled] of Object.entries(code)) {
       if (
-        !["comments", "jsx", "strings", "identifiers"].includes(key) ||
+        !["comments", "jsx", "strings", "identifiers", "fences"].includes(
+          key,
+        ) ||
         typeof enabled !== "boolean"
       ) {
         throw new Error(
-          "spellcheck.code supports boolean comments, jsx, strings, and identifiers settings.",
+          "spellcheck.code supports boolean comments, jsx, strings, identifiers, and fences settings.",
         );
       }
     }
@@ -158,6 +160,7 @@ export function spellingSettings(value) {
       jsx: code !== false && code.jsx !== false,
       strings: code !== false && code.strings === true,
       identifiers: code !== false && code.identifiers === true,
+      fences: code !== false && code.fences === true,
     },
   };
 }

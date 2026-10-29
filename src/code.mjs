@@ -32,11 +32,14 @@ const proseAttributes = new Set([
   "aria-description",
 ]);
 
-function documentation(text) {
+function documentation(text, ignored) {
   let example = false;
-  return text.replace(/[^\r\n]+/g, (line) => {
+  return text.replace(/[^\r\n]+/g, (line, offset) => {
     const trimmed = line.trimStart();
     if (machinery.test(trimmed)) {
+      if (example || !/^spellcheck[-:]/u.test(trimmed)) {
+        ignored.push([offset, offset + line.length]);
+      }
       return mask(line);
     }
     let result = line;
@@ -44,6 +47,7 @@ function documentation(text) {
     if (tag) {
       example = tag[1].toLowerCase() === "example";
       if (example || metadataTag.test(tag[1])) {
+        ignored.push([offset, offset + line.length]);
         return mask(line);
       }
       let end = tag[0].length;
@@ -61,8 +65,10 @@ function documentation(text) {
         );
         if (name) end += name[0].length;
       }
+      ignored.push([offset, offset + end]);
       result = mask(line.slice(0, end)) + line.slice(end);
     } else if (example) {
+      ignored.push([offset, offset + line.length]);
       return mask(line);
     }
     result = result.replace(
@@ -122,7 +128,8 @@ function commentSource(text, group) {
       }
     }
   }
-  const cleaned = documentation(source);
+  const excluded = [];
+  const cleaned = documentation(source, excluded);
   let prose = "";
   const positions = [];
   const append = (first, last) => {
@@ -146,7 +153,14 @@ function commentSource(text, group) {
       append(first, first + line[0].length);
     }
   }
-  return { text: prose, mapping: positions };
+  return {
+    text: prose,
+    mapping: positions,
+    directiveIgnored: excluded.map(([start, end]) => [
+      mapping[start].start,
+      mapping[end - 1].end,
+    ]),
+  };
 }
 
 function decodedString(raw, start, expected, template = false) {
@@ -311,7 +325,6 @@ export async function codeSpans(text, parser, options, config) {
       const next = ordered.find((node) => range(node)[0] >= end);
       if (next) ignored.push(range(next));
     }
-    if (!config.comments) continue;
     const previous = groups.at(-1)?.at(-1);
     if (
       previous &&
@@ -324,7 +337,9 @@ export async function codeSpans(text, parser, options, config) {
       groups.at(-1).push(comment);
     } else groups.push([comment]);
   }
-  for (const group of groups) prose.push(commentSource(text, group));
+  for (const group of groups) {
+    prose.push({ ...commentSource(text, group), enabled: config.comments });
+  }
   for (const node of records) {
     const [start, end] = range(node);
     if (!Number.isInteger(start) || !Number.isInteger(end)) continue;

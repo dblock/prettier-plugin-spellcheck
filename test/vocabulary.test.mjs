@@ -100,6 +100,21 @@ test("collect infers plain text and excludes configured dictionaries and its own
   );
 });
 
+test("collect checks explicitly enabled tagged code fences without suggestions", (t) => {
+  const { write, read, run } = fixture(t);
+  write(
+    "spellcheck.json",
+    JSON.stringify({ code: { fences: true, strings: true } }),
+  );
+  write("example.md", '```ts\nconst value: string = "qzxfenced";\n```\n');
+  const result = run("collect", "*.md");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nqzxfenced\n",
+  );
+});
+
 test("collect rejects invalid nested spelling options before creating output", (t) => {
   const { write, run, directory } = fixture(t);
   write("example.md", "helo\n");

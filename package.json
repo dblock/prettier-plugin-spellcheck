@@ -44,6 +44,8 @@
     "markdownlint-rule-spellcheck": "^0.2.0"
   },
   "devDependencies": {
+    "@cspell/dict-es-es": "^3.0.9",
+    "@cspell/dict-software-terms": "^5.4.8",
     "@eslint/js": "^10.0.1",
     "c8": "^12.0.0",
     "eslint": "^10.13.0",

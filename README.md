@@ -31,6 +31,45 @@ npx prettier --check "**/*.md"
 
 Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Spelling is checked in Markdown prose, not source code or MDX.
 
+## Dictionaries
+
+Point `spellcheckConfig` at a JSON file in your Prettier configuration:
+
+```json
+{
+  "plugins": ["prettier-plugin-spellcheck"],
+  "spellcheckConfig": "./.spellcheck.json",
+  "proseWrap": "never"
+}
+```
+
+In `.spellcheck.json`:
+
+```json
+{
+  "dictionaries": {
+    "en": ["@cspell/dict-en_us", "./.spellcheck.txt"]
+  }
+}
+```
+
+Create `.spellcheck.txt` with one accepted, case-sensitive word per line. Blank lines and `#` comments are ignored. Vocabulary files are resolved relative to the spelling configuration file and reloaded on each format, so editor sessions see edits immediately.
+
+The `spellcheckConfig` path is relative to the process working directory, not the Prettier configuration file. Use an absolute path when invoking Prettier from elsewhere. Installed dictionary packages resolve from the working directory; install them in the project where you run Prettier.
+
+Without a spelling configuration, bundled American English is used. An explicit `dictionaries` map replaces that default, so include `@cspell/dict-en_us` if you still want English. All configured languages participate together:
+
+```json
+{
+  "dictionaries": {
+    "en": ["@cspell/dict-en_us", "@cspell/dict-software-terms"],
+    "es": ["@cspell/dict-es-es"]
+  }
+}
+```
+
+Install additional dictionary packages yourself. No dictionary discovery, network requests, CSpell configuration imports, or Hunspell/system dictionaries are used while formatting. Invalid configuration and missing dictionaries are errors.
+
 ## Corrections
 
 Set `"spellcheckAutocorrect": true` in your Prettier configuration, then run:

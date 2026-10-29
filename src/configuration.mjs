@@ -1,3 +1,58 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+export function readSettingsFile(path) {
+  try {
+    const source = readFileSync(path, "utf8");
+    return { source, value: JSON.parse(source) };
+  } catch (error) {
+    throw new Error(
+      `Cannot read spelling configuration ${path}: ${error.message}`,
+      {
+        cause: error,
+      },
+    );
+  }
+}
+
+export function spellingConfigPath(options = {}) {
+  const value = options.spellcheckConfig;
+  if (value === undefined || value === null) {
+    return resolve("spellcheck.json");
+  }
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("spellcheckConfig must be a nonempty file path.");
+  }
+  return value.trimStart().startsWith("{") ? undefined : resolve(value);
+}
+
+export function loadSettings(options = {}) {
+  if (
+    options.spellcheck !== undefined &&
+    typeof options.spellcheck !== "boolean"
+  ) {
+    throw new Error(
+      "spellcheck must be a boolean; use defineConfig for nested settings.",
+    );
+  }
+  if (options.spellcheck === false) {
+    return spellingSettings(false);
+  }
+  const path = spellingConfigPath(options);
+  let value;
+  if (path) {
+    if (options.spellcheckConfig != null || existsSync(path)) {
+      value = readSettingsFile(path).value;
+    }
+  } else {
+    value = options.spellcheckConfig;
+  }
+  const settings = spellingSettings(value);
+  return options.spellcheck === true
+    ? { ...settings, enabled: true }
+    : settings;
+}
+
 export function spellingSettings(value) {
   if (typeof value === "string") {
     try {

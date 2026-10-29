@@ -3,6 +3,7 @@
 ## 0.1.0 (Next)
 
 - Your contribution here.
+- Load optional `spellcheck.json` automatically, support explicit `spellcheckConfig` paths without a helper, and allow nested inline settings through `defineConfig`.
 - Configure spelling inline under one nested `spellcheck` object with a JavaScript Prettier configuration helper.
 - Reject invalid per-file Prettier spelling options during vocabulary collection.
 - Preserve byte-order marks and CRLF source offsets in spelling diagnostics and corrections.

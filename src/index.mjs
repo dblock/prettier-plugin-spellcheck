@@ -1,19 +1,23 @@
 import { parsers as markdownParsers } from "prettier/plugins/markdown";
-import { spellingSettings } from "./configuration.mjs";
+import { loadSettings, spellingSettings } from "./configuration.mjs";
 import { applyCorrections, checkSource, describeIssue } from "./spelling.mjs";
 
 export const options = {
   spellcheck: {
+    type: "boolean",
+    category: "Spelling",
+    description: "Enable or disable Markdown spelling checks.",
+  },
+  spellcheckConfig: {
     type: "string",
     category: "Spelling",
-    default: "{}",
     description:
-      "JSON spelling settings; use defineConfig for nested configuration.",
+      "Spelling configuration file; defaults to spellcheck.json when present.",
   },
 };
 
 async function preprocess(text, options) {
-  const settings = spellingSettings(options.spellcheck);
+  const settings = loadSettings(options);
   let corrected = text;
   if (settings.enabled) {
     const errors = await checkSource(text, settings);
@@ -46,8 +50,28 @@ export const parsers = {
 const plugin = { options, parsers };
 export default plugin;
 
-function serialized(value) {
-  return JSON.stringify(spellingSettings(value));
+function inlineOptions(options) {
+  const value = options.spellcheck;
+  if (value === undefined) {
+    const result = { ...options };
+    delete result.spellcheck;
+    return result;
+  }
+  if (typeof value === "boolean") {
+    return options;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("spellcheck must be an object or boolean.");
+  }
+  const result = {
+    ...options,
+    spellcheckConfig: JSON.stringify(spellingSettings(value)),
+  };
+  delete result.spellcheck;
+  if (value.enabled !== undefined) {
+    result.spellcheck = value.enabled;
+  }
+  return result;
 }
 
 export function defineConfig(config = {}) {
@@ -61,14 +85,13 @@ export function defineConfig(config = {}) {
     throw new Error("Prettier overrides must be an array.");
   }
   return {
-    ...config,
+    ...inlineOptions(config),
     plugins: [
       ...(config.plugins || []).filter(
         (entry) => entry !== plugin && entry !== "prettier-plugin-spellcheck",
       ),
       plugin,
     ],
-    spellcheck: serialized(config.spellcheck),
     ...(config.overrides
       ? {
           overrides: config.overrides.map((override) => ({
@@ -76,10 +99,7 @@ export function defineConfig(config = {}) {
             ...(override.options &&
             Object.hasOwn(override.options, "spellcheck")
               ? {
-                  options: {
-                    ...override.options,
-                    spellcheck: serialized(override.options.spellcheck),
-                  },
+                  options: inlineOptions(override.options),
                 }
               : {}),
           })),

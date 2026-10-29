@@ -16,7 +16,52 @@ The package is not yet published to npm; install from GitHub for now.
 
 ## Usage
 
-In `.prettierrc.mjs`:
+No spelling configuration is required. Load the plugin on the command line:
+
+```sh
+npx prettier --plugin prettier-plugin-spellcheck --check "**/*.md"
+```
+
+Alternatively, register it in your normal Prettier configuration:
+
+```json
+{
+  "plugins": ["prettier-plugin-spellcheck"]
+}
+```
+
+Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Spelling is checked in Markdown prose, not source code or MDX.
+
+## Configuration
+
+### Automatic configuration
+
+The plugin automatically reads `spellcheck.json` from the process working directory when it exists. If it is absent, bundled American English is used and autocorrection is off. No helper or additional Prettier options are needed.
+
+An optional `spellcheck.json`:
+
+```json
+{
+  "autocorrect": false
+}
+```
+
+### Explicit configuration file
+
+Select a different file with `spellcheckConfig` in any normal Prettier configuration, without a helper:
+
+```json
+{
+  "plugins": ["prettier-plugin-spellcheck"],
+  "spellcheckConfig": "./config/spelling.json"
+}
+```
+
+The selected JSON file has the same settings as `spellcheck.json`. Paths are relative to the process working directory. An explicitly selected missing file is an error; it never falls back to the default file.
+
+### Inline configuration
+
+For inline settings, use `defineConfig` in `.prettierrc.mjs`:
 
 ```js
 import { defineConfig } from "prettier-plugin-spellcheck";
@@ -28,34 +73,24 @@ export default defineConfig({
 });
 ```
 
-`defineConfig` registers the plugin and accepts one nested `spellcheck` object alongside ordinary Prettier settings. Prettier's public plugin options do not accept objects, so the helper serializes that option internally. Use a JavaScript configuration, not a nested object in `.prettierrc.json`.
+The helper registers the plugin and accepts one nested `spellcheck` object alongside ordinary Prettier settings. Prettier's public plugin options do not accept objects, so the helper serializes inline settings internally.
 
-```sh
-npx prettier --check "**/*.md"
-```
-
-Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Spelling is checked in Markdown prose, not source code or MDX.
+Priority is **inline settings → explicit `spellcheckConfig` → automatic `spellcheck.json` → built-in defaults**. Inline settings replace, rather than merge with, file settings. Configuration files are reloaded on every format. Invalid configuration is an error.
 
 ## Dictionaries
 
-Bundled American English is the default. Configure additional dictionaries inline in the same Prettier configuration:
+In `spellcheck.json`, an explicit configuration file, or the helper's nested `spellcheck` object:
 
-```js
-import { defineConfig } from "prettier-plugin-spellcheck";
-
-export default defineConfig({
-  spellcheck: {
-    dictionaries: [
-      "@cspell/dict-en_us",
-      "@cspell/dict-software-terms",
-      "@cspell/dict-es-es",
-      "./.spellcheck.txt",
-    ],
-  },
-});
+```json
+{
+  "dictionaries": [
+    "@cspell/dict-en_us",
+    "@cspell/dict-software-terms",
+    "@cspell/dict-es-es",
+    "./.spellcheck.txt"
+  ]
+}
 ```
-
-Create `.spellcheck.txt` with one accepted, case-sensitive word per line. Blank lines and `#` comments are ignored. Vocabulary files are resolved relative to the process working directory and reloaded on each format, so editor sessions see edits immediately. Use absolute paths when running Prettier from elsewhere.
 
 An explicit `dictionaries` array replaces the default, so include `@cspell/dict-en_us` if you still want English. All configured languages participate together.
 
@@ -65,7 +100,9 @@ Install additional dictionary packages in the project where you run Prettier:
 npm install --save-dev @cspell/dict-software-terms @cspell/dict-es-es
 ```
 
-No dictionary discovery, network requests, CSpell configuration imports, or Hunspell/system dictionaries are used while formatting. Invalid configuration and missing dictionaries are errors.
+Create `.spellcheck.txt` with one accepted, case-sensitive word per line. Blank lines and `#` comments are ignored. Vocabulary paths are relative to the process working directory in all configuration forms, and vocabulary is reloaded on every format. Use absolute paths when running Prettier from elsewhere.
+
+No dictionary discovery, network requests, CSpell configuration imports, or Hunspell/system dictionaries are used while formatting. Missing or invalid dictionaries are errors.
 
 ## Project vocabulary
 
@@ -79,44 +116,46 @@ npx prettier-plugin-spellcheck add ./.spellcheck.txt
 
 `collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It skips source code and MDX and never changes input files or overwrites an existing candidate file. Collection does not compute suggestions.
 
-Use `--config path/to/prettier.config.mjs` to select an explicit Prettier configuration. Otherwise `collect` resolves each file's normal Prettier configuration, including overrides.
+Use `--config path/to/prettier.config.mjs` to select an explicit Prettier configuration. Otherwise the commands discover the normal Prettier configuration; `collect` also applies each file's overrides.
 
-`add` registers the reviewed vocabulary in the discovered Prettier configuration, or creates `.prettierrc.mjs` if none exists. It preserves other settings, formats the configuration with Prettier, and avoids duplicate dictionary paths. Existing configurations must use a static `export default defineConfig({...})` with a literal dictionary array; dynamic configurations and non-JavaScript formats must be edited manually. Disabled spelling is never silently enabled.
+`add` registers reviewed vocabulary in `spellcheck.json` by default, creating it if needed. If `spellcheckConfig` selects another JSON file, it updates that file instead. No Prettier configuration or helper is required.
+
+For inline settings, `add` updates a static `export default defineConfig({...})` with a literal dictionary array, preserving other settings and comments. Dynamic inline configurations must be edited manually. Updated configurations are formatted with Prettier, duplicate paths are avoided, and disabled spelling is never silently enabled.
 
 ## YAML front matter
 
 YAML front matter checking is enabled by default for string values, including nested objects and arrays. Keys, comments, numbers, and booleans are skipped. Anchored strings are checked once at their definition; aliases are not expanded.
 
-Select fields under `spellcheck.frontMatter`:
+Select fields with `frontMatter` in your spelling settings:
 
-```js
-export default defineConfig({
-  spellcheck: {
-    frontMatter: {
-      include: ["title", "description", "authors.name", "metadata"],
-      exclude: ["metadata.id", "metadata.url"],
-    },
-  },
-});
+```json
+{
+  "frontMatter": {
+    "include": ["title", "description", "authors.name", "metadata"],
+    "exclude": ["metadata.id", "metadata.url"]
+  }
+}
 ```
 
 Omitting `include` checks all string values; `include: []` checks none. Dotted paths select nested fields, including fields inside arrays without numeric indices. Selecting a parent includes its subtree, and exclusions win.
 
-Set `spellcheck: { frontMatter: false }` to skip front matter spelling. Quoted and block string values are checked but never automatically corrected. Plain values can be corrected only when the replacement remains a YAML string. Malformed YAML and invalid field selectors are errors. Non-YAML front matter is not spellchecked.
+Set `frontMatter: false` to skip front matter spelling. Quoted and block string values are checked but never automatically corrected. Plain values can be corrected only when the replacement remains a YAML string. Malformed YAML and invalid field selectors are errors. Non-YAML front matter is not spellchecked.
 
 ## Corrections
 
-Set `spellcheck: { autocorrect: true }` in your Prettier configuration, then run:
+Set `autocorrect` to `true` in your spelling settings, then run:
 
 ```sh
-npx prettier --write "**/*.md"
+npx prettier --plugin prettier-plugin-spellcheck --write "**/*.md"
 ```
 
 Corrections are opt-in. A lowercase or title-case word is only replaced when the dictionary-valid first suggestion is one letter edit or transposition away. ALL CAPS, mixed case, and words inside dotted, hyphenated, or identifier-like tokens are not automatically corrected.
 
 If any spelling error in a file lacks an approved correction, that entire file fails without being rewritten. Other files in the same Prettier invocation may still be written. Review the diff: even conservative spelling corrections can change meaning.
 
-Use `spellcheck: false` or `spellcheck: { enabled: false }` inside `defineConfig` to turn off spelling while retaining normal Markdown formatting. Standard Prettier overrides are supported; an override's `spellcheck` value replaces the root value rather than deep-merging it.
+Use `enabled: false` in your spelling settings to turn off checking. The ordinary Prettier option `spellcheck: false` also disables spelling, without a helper, while retaining normal Markdown formatting; an explicit boolean `spellcheck` overrides the settings' `enabled` value.
+
+Standard Prettier overrides are supported, including switching between inline and external settings. An override's settings replace the root settings rather than deep-merging them.
 
 ## Scope
 

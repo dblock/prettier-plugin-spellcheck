@@ -8,6 +8,7 @@ import { getFileInfo, resolveConfig, resolveConfigFile } from "prettier";
 import { checkSource } from "./spelling.mjs";
 import { getDictionary } from "./dictionaries.mjs";
 import { addDictionary } from "./update-config.mjs";
+import { loadSettings } from "./configuration.mjs";
 
 const usage = `Usage: prettier-plugin-spellcheck collect <globs...> [--output .spellcheck.txt] [--config prettier.config.mjs]
        prettier-plugin-spellcheck add <dictionary.txt> [--config prettier.config.mjs]`;
@@ -42,7 +43,7 @@ async function collect(patterns, values) {
     matched++;
     for (const issue of await checkSource(
       readFileSync(file, "utf8"),
-      config.spellcheck,
+      loadSettings(config),
       {
         suggestions: false,
       },
@@ -78,6 +79,9 @@ try {
       help: { type: "boolean" },
     },
   });
+  if (values.config !== undefined && !values.config.trim()) {
+    throw new Error("--config must be a nonempty file path.");
+  }
   if (values.help) {
     console.log(usage);
   } else {
@@ -90,9 +94,11 @@ try {
       patterns[0].endsWith(".txt")
     ) {
       getDictionary([resolve(patterns[0])]);
-      const file =
-        values.config ?? (await resolveConfigFile()) ?? ".prettierrc.mjs";
-      const { changed, entry } = await addDictionary(file, patterns[0]);
+      const configFile = values.config ?? (await resolveConfigFile());
+      const { changed, entry, file } = await addDictionary(
+        configFile,
+        patterns[0],
+      );
       console.log(
         `${changed ? "Added" : "Already registered"} ${entry} in ${file}.`,
       );

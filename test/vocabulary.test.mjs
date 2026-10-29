@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
+import { loadSettings } from "../src/configuration.mjs";
 
 const bin = fileURLToPath(new URL("../src/cli.mjs", import.meta.url));
 const packagePath = fileURLToPath(new URL("../", import.meta.url));
@@ -134,7 +135,7 @@ test("add preserves nested and formatting settings, stores working-directory pat
     pathToFileURL(join(directory, "config/prettier.config.mjs"))
   );
   assert.equal(config.singleQuote, true);
-  const settings = JSON.parse(config.spellcheck);
+  const settings = loadSettings(config);
   assert.deepEqual(settings.dictionaries, [
     "@cspell/dict-es-es",
     "./words.txt",
@@ -142,42 +143,36 @@ test("add preserves nested and formatting settings, stores working-directory pat
   assert.equal(settings.frontMatter, false);
 });
 
-test("add creates a normal Prettier config but rejects invalid vocabulary before writing", async (t) => {
+test("add creates the default spellcheck.json without needing a Prettier config", (t) => {
   const { write, read, run, directory } = fixture(t);
   write("words.txt", "qzxwidget\n");
   const added = run("add", "words.txt");
   assert.equal(added.status, 0, added.stderr);
-  const { default: config } = await import(
-    pathToFileURL(join(directory, ".prettierrc.mjs"))
-  );
-  assert.deepEqual(JSON.parse(config.spellcheck).dictionaries, [
+  assert.equal(existsSync(join(directory, ".prettierrc.mjs")), false);
+  assert.deepEqual(JSON.parse(read("spellcheck.json")).dictionaries, [
     "@cspell/dict-en_us",
     "./words.txt",
   ]);
-  const before = read(".prettierrc.mjs");
+  const before = read("spellcheck.json");
   write("words.txt", "not a word\n");
   const result = run("add", "words.txt");
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Invalid vocabulary word/u);
-  assert.equal(read(".prettierrc.mjs"), before);
+  assert.equal(read("spellcheck.json"), before);
 });
 
 test("add fills missing nested settings without removing unrelated configuration", async (t) => {
-  for (const settings of [
-    {},
-    { spellcheck: true },
-    { spellcheck: { autocorrect: true } },
-  ]) {
+  for (const spellcheck of [{}, { autocorrect: true }]) {
     const { write, run, directory } = fixture(t);
     write("words.txt", "qzxwidget\n");
-    write(".prettierrc.mjs", configSource({ tabWidth: 4, ...settings }));
+    write(".prettierrc.mjs", configSource({ tabWidth: 4, spellcheck }));
     const result = run("add", "words.txt");
     assert.equal(result.status, 0, result.stderr);
     const { default: config } = await import(
       pathToFileURL(join(directory, ".prettierrc.mjs"))
     );
     assert.equal(config.tabWidth, 4);
-    assert.deepEqual(JSON.parse(config.spellcheck).dictionaries, [
+    assert.deepEqual(loadSettings(config).dictionaries, [
       "@cspell/dict-en_us",
       "./words.txt",
     ]);
@@ -193,9 +188,12 @@ test("add refuses disabled or dynamic settings and leaves the configuration unto
       configSource({ spellcheck: { enabled: false } }),
       /spellcheck is disabled/u,
     ],
-    ["export default {};\n", /export default defineConfig/u],
     [
-      "const base = {};\nexport default defineConfig({...base});\n",
+      'export default {spellcheckConfig:"{}"};\n',
+      /export default defineConfig/u,
+    ],
+    [
+      'import { defineConfig } from "prettier-plugin-spellcheck";\nconst base = {};\nexport default defineConfig({...base, spellcheck:{}});\n',
       /static object properties/u,
     ],
     [
@@ -209,4 +207,58 @@ test("add refuses disabled or dynamic settings and leaves the configuration unto
     assert.match(result.stderr, message);
     assert.equal(read(".prettierrc.mjs"), source);
   }
+});
+
+test("collect automatically loads spellcheck.json without a Prettier configuration", (t) => {
+  const { write, read, run } = fixture(t);
+  write(
+    "spellcheck.json",
+    JSON.stringify({
+      dictionaries: ["@cspell/dict-en_us", "./words.txt"],
+      frontMatter: false,
+    }),
+  );
+  write("words.txt", "qzxwidget\n");
+  write("example.md", "---\ntitle: qzxignored\n---\n\nhelo qzxwidget\n");
+  const result = run("collect", "*.md");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nhelo\n",
+  );
+});
+
+test("add updates an explicit external JSON config without changing the Prettier configuration", (t) => {
+  const { write, read, run, directory } = fixture(t);
+  mkdirSync(join(directory, "config"));
+  const prettierConfig = JSON.stringify({
+    spellcheckConfig: "./config/spelling.json",
+  });
+  write(".prettierrc.json", prettierConfig);
+  write(
+    "config/spelling.json",
+    JSON.stringify({
+      autocorrect: true,
+      dictionaries: ["@cspell/dict-en_us"],
+      frontMatter: false,
+    }),
+  );
+  write("words.txt", "qzxwidget\n");
+  write("example.md", "helo qzxwidget\n");
+  for (let count = 0; count < 2; count++) {
+    const result = run("add", "words.txt");
+    assert.equal(result.status, 0, result.stderr);
+  }
+  assert.equal(read(".prettierrc.json"), prettierConfig);
+  assert.deepEqual(JSON.parse(read("config/spelling.json")), {
+    autocorrect: true,
+    dictionaries: ["@cspell/dict-en_us", "./words.txt"],
+    frontMatter: false,
+  });
+  const collected = run("collect", "*.md");
+  assert.equal(collected.status, 0, collected.stderr);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Review these candidates: remove typos before using this dictionary.\nhelo\n",
+  );
 });

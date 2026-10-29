@@ -1,8 +1,7 @@
 # Changelog
 
-## 0.1.0 (Next)
+## 0.1.0 (2026/10/29)
 
-- Your contribution here.
 - Show concise spelling failures without stack traces, preserving word locations, suggestions, and failure exit status.
 - Spellcheck standalone HTML prose and human-facing attributes with source-mapped entities, safe text corrections, suppression/ignore support, and vocabulary collection/refresh.
 - Preserve inline suppression explanations across supported Prettier Markdown parser versions, including formatted reason text.

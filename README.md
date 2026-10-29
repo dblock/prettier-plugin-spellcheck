@@ -159,7 +159,7 @@ Standard Prettier overrides are supported, including switching between inline an
 
 ## Scope
 
-Uses Prettier's public Markdown AST and CSpell dictionaries directly. There is no dependency on markdownlint or markdownlint-rule-spellcheck. Checks headings, paragraphs, lists, quotes, tables, link labels, image descriptions, and string values in Markdown's YAML front matter. Skips code, HTML, link destinations, URLs, email addresses, and entity-encoded word fragments.
+Uses Prettier's public Markdown AST and CSpell dictionaries directly. Checks headings, paragraphs, lists, quotes, tables, link labels, image descriptions, and string values in Markdown's YAML front matter. Skips code, HTML, link destinations, URLs, email addresses, and entity-encoded word fragments.
 
 Use `<!-- spellcheck-disable -->` and `<!-- spellcheck-enable -->` to suppress spelling in a region. The `spellcheck-disable-file`, `spellcheck-disable-line`, and `spellcheck-disable-next-line` variants are also supported. Existing `<!-- markdownlint-disable spellcheck -->` comments remain compatible without loading markdownlint.
 

@@ -306,12 +306,18 @@ function suppressions(comments, offsets, text, ignored, nativeIgnored) {
 export async function checkSource(
   text,
   config = {},
-  { suggestions = true, parser = "markdown", ...parserOptions } = {},
+  {
+    suggestions = true,
+    parser = "markdown",
+    excludeDictionaries = [],
+    ...parserOptions
+  } = {},
 ) {
   if (text.startsWith("\uFEFF")) {
     const issues = await checkSource(text.slice(1), config, {
       suggestions,
       parser,
+      excludeDictionaries,
       ...parserOptions,
     });
     return issues.map((issue) => ({ ...issue, offset: issue.offset + 1 }));
@@ -332,7 +338,9 @@ export async function checkSource(
   ) {
     return [];
   }
-  const dictionary = getDictionary(settings.dictionaries);
+  const dictionary = getDictionary(settings.dictionaries, {
+    exclude: excludeDictionaries,
+  });
   const context = Object.hasOwn(codeParsers, parser)
     ? await codeSpans(text, parser, parserOptions, settings.code)
     : parser === textParser
@@ -493,6 +501,7 @@ export async function checkSource(
           parser: fence.parser,
           filepath: `${parserOptions.filepath || "fence"}.${fence.language}`,
           suggestions,
+          excludeDictionaries,
         },
       );
     } catch (error) {

@@ -114,7 +114,15 @@ npx prettier-plugin-spellcheck collect "**/*.{md,txt,js,jsx,ts,tsx}" --output .s
 npx prettier-plugin-spellcheck add ./.spellcheck.txt
 ```
 
-`collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It checks Markdown, plain text, and supported code files using the same scope settings as formatting, and skips unsupported languages and MDX. Configured vocabulary files and the selected output are excluded from inputs. It never changes input files or overwrites an existing candidate file. Collection does not compute suggestions.
+`collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It checks Markdown, plain text, and supported code files using the same scope settings as formatting, and skips unsupported languages and MDX. Configured vocabulary files and the selected output are excluded from inputs. It never changes source files; without `--refresh`, it never overwrites an existing candidate file. Collection does not compute suggestions.
+
+To explicitly rebuild an existing vocabulary, inspired by rubocop-spellcheck:
+
+```sh
+npx prettier-plugin-spellcheck collect "**/*.{md,txt,js,jsx,ts,tsx}" --output .spellcheck.txt --refresh
+```
+
+`--refresh` ignores the selected vocabulary while checking, including aliases to that file, but retains all other dictionaries and suppression rules. It removes obsolete entries, preserves comments and the original spelling/order of retained entries, and appends sorted new candidates. **Scan the full intended project and review new candidates for typos:** partial scans can remove words still used elsewhere. An existing regular `.txt` output is required; symbolic links, concurrent edits, failed scans, and wholly disabled input sets are rejected without replacing the vocabulary. A successful scan with no unknown words clears obsolete entries while retaining comments. Source and configuration files are never rewritten.
 
 Use `--config path/to/prettier.config.mjs` to select an explicit Prettier configuration. Otherwise the commands discover the normal Prettier configuration; `collect` also applies each file's overrides.
 

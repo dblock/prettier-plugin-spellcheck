@@ -3,6 +3,7 @@
 ## 0.1.0 (Next)
 
 - Your contribution here.
+- Add explicit vocabulary refresh with stale-entry pruning, retained spelling/comments, dictionary-alias exclusion, and atomic replacement guarded against concurrent edits.
 - Optionally check tagged JS/TS fences in Markdown and code documentation, preserving nested source coordinates and report-only runtime scopes.
 - Check literal plain-text documents through a layout-preserving Prettier parser and vocabulary collection, excluding configured vocabulary resources.
 - Support suppression reasons, rule lists, colon and todo directives, and isolated documentation scopes without interpreting directives in excluded examples or templates.

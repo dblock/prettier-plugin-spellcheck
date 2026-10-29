@@ -9,5 +9,6 @@
 - Add focused tests for source ranges, conservative corrections, dictionary handling, plugin integration, and CLI behavior.
 - Keep plain text literal and preserve its layout. Exclude configured vocabulary resources from text checking and collection.
 - Keep tagged code fences opt-in, preserve container/source mappings, and isolate their suppression state from surrounding documents.
+- Vocabulary collection must not overwrite by default. Refresh is explicit, excludes the old output dictionary, and must fail safely before replacing reviewed vocabulary.
 - Run lint and relevant tests before committing. Keep Markdown paragraphs on one source line.
 - Never publish to npm or create release tags without explicit authorization.

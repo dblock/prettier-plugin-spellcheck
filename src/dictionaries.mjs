@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
@@ -13,36 +13,45 @@ const packages = new Map();
 const suggestions = new WeakMap();
 export const wordOnly = /^\p{L}[\p{L}\p{M}]*(?:['’]\p{L}[\p{L}\p{M}]*)*$/u;
 export const normalizeApostrophes = (word) => word.replaceAll("\u2019", "'");
-export const isDictionaryFile = (entries, filepath) =>
-  typeof filepath === "string" &&
-  entries.some(
-    (entry) => entry.endsWith(".txt") && resolve(entry) === resolve(filepath),
-  );
+export function isDictionaryFile(entries, filepath) {
+  if (typeof filepath !== "string") return false;
+  return entries.some((entry) => {
+    if (!entry.endsWith(".txt")) return false;
+    if (resolve(entry) === resolve(filepath)) return true;
+    if (!existsSync(entry) || !existsSync(filepath)) return false;
+    const resource = statSync(entry);
+    const input = statSync(filepath);
+    return resource.dev === input.dev && resource.ino === input.ino;
+  });
+}
 
-function vocabulary(path) {
-  return readFileSync(path, "utf8")
-    .split(/\r\n|\r|\n/u)
-    .flatMap((line, index) => {
-      const word = line.trim();
-      if (!word || word.startsWith("#")) {
-        return [];
-      }
-      if (!wordOnly.test(word)) {
-        throw new Error(
-          `Invalid vocabulary word at ${path}:${index + 1}: ${word}`,
-        );
-      }
-      return [word];
-    });
+export function vocabularyWords(source, path) {
+  return source.split(/\r\n|\r|\n/u).flatMap((line, index) => {
+    const word = line.trim();
+    if (!word || word.startsWith("#")) {
+      return [];
+    }
+    if (!wordOnly.test(word)) {
+      throw new Error(
+        `Invalid vocabulary word at ${path}:${index + 1}: ${word}`,
+      );
+    }
+    return [word];
+  });
 }
 
 function load(entry) {
   if (entry.endsWith(".txt")) {
     const path = resolve(entry);
     return [
-      createSpellingDictionary(vocabulary(path), path, path, {
-        caseSensitive: true,
-      }),
+      createSpellingDictionary(
+        vocabularyWords(readFileSync(path, "utf8"), path),
+        path,
+        path,
+        {
+          caseSensitive: true,
+        },
+      ),
     ];
   }
   if (!/^(?:@[\w.-]+\/)?[\w.-]+$/u.test(entry)) {
@@ -118,7 +127,7 @@ function suggest(dictionary, word) {
   return cache.get(word);
 }
 
-export function getDictionary(entries) {
+export function getDictionary(entries, { exclude = [] } = {}) {
   if (
     !Array.isArray(entries) ||
     !entries.length ||
@@ -128,7 +137,9 @@ export function getDictionary(entries) {
       "spellcheck.dictionaries must be a nonempty array of dictionary packages or .txt paths.",
     );
   }
-  const dictionaries = [...new Set(entries)].flatMap(load);
+  const dictionaries = [...new Set(entries)]
+    .filter((entry) => !exclude.some((path) => isDictionaryFile([entry], path)))
+    .flatMap(load);
   const collection = createCollection(dictionaries, "prettier-spellcheck");
   return {
     has: (word) =>

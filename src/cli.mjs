@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { glob, stat } from "node:fs/promises";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { getFileInfo, resolveConfig, resolveConfigFile } from "prettier";
@@ -12,20 +12,29 @@ import { loadSettings } from "./configuration.mjs";
 import { codeParsers } from "./code.mjs";
 import plugin from "./index.mjs";
 import { textParser } from "./text.mjs";
+import { vocabularySnapshot, writeCandidates } from "./vocabulary.mjs";
 
-const usage = `Usage: prettier-plugin-spellcheck collect <globs...> [--output .spellcheck.txt] [--config prettier.config.mjs]
+const usage = `Usage: prettier-plugin-spellcheck collect <globs...> [--output .spellcheck.txt] [--refresh] [--config prettier.config.mjs]
        prettier-plugin-spellcheck add <dictionary.txt> [--config prettier.config.mjs]`;
 
 async function collect(patterns, values) {
   if (!values.output.trim()) {
     throw new Error("--output must be a nonempty file path.");
   }
+  const snapshot = values.refresh
+    ? vocabularySnapshot(values.output)
+    : undefined;
   const words = new Set();
   let matched = 0;
   for await (const file of glob(patterns, {
     exclude: ["**/node_modules/**", "**/.git/**"],
   })) {
-    if (resolve(file) === resolve(values.output)) continue;
+    if (
+      resolve(file) === resolve(values.output) ||
+      isDictionaryFile([values.output], file)
+    ) {
+      continue;
+    }
     if (!(await stat(file)).isFile()) {
       continue;
     }
@@ -51,6 +60,16 @@ async function collect(patterns, values) {
     }
     const settings = loadSettings(config);
     if (isDictionaryFile(settings.dictionaries, file)) continue;
+    if (
+      values.refresh &&
+      (!settings.enabled ||
+        (Object.hasOwn(codeParsers, parser) &&
+          !["comments", "jsx", "strings", "identifiers"].some(
+            (scope) => settings.code[scope],
+          )))
+    ) {
+      continue;
+    }
     matched++;
     for (const issue of await checkSource(
       readFileSync(file, "utf8"),
@@ -60,6 +79,7 @@ async function collect(patterns, values) {
         parser,
         filepath: resolve(file),
         suggestions: false,
+        excludeDictionaries: values.refresh ? [resolve(values.output)] : [],
       },
     )) {
       words.add(issue.word);
@@ -67,20 +87,16 @@ async function collect(patterns, values) {
   }
   if (!matched) {
     throw new Error(
-      "No non-ignored Markdown, plain-text, or supported code files matched the supplied patterns.",
+      values.refresh
+        ? "No enabled spelling inputs matched; vocabulary was not refreshed."
+        : "No non-ignored Markdown, plain-text, or supported code files matched the supplied patterns.",
     );
   }
-  writeFileSync(
-    values.output,
-    [
-      "# Review these candidates: remove typos before using this dictionary.",
-      ...[...words].sort(),
-      "",
-    ].join("\n"),
-    { flag: "wx" },
-  );
+  writeCandidates(values.output, words, snapshot);
   console.log(
-    `Created ${values.output} with ${words.size} candidate words. Review before adding it to dictionaries.`,
+    values.refresh
+      ? `Refreshed ${values.output} from ${words.size} candidate words. Review before using this dictionary.`
+      : `Created ${values.output} with ${words.size} candidate words. Review before adding it to dictionaries.`,
   );
 }
 
@@ -90,11 +106,15 @@ try {
     options: {
       output: { type: "string", default: ".spellcheck.txt" },
       config: { type: "string" },
+      refresh: { type: "boolean" },
       help: { type: "boolean" },
     },
   });
   if (values.config !== undefined && !values.config.trim()) {
     throw new Error("--config must be a nonempty file path.");
+  }
+  if (values.refresh && positionals[0] !== "collect") {
+    throw new Error("--refresh is only supported by collect.");
   }
   if (values.help) {
     console.log(usage);

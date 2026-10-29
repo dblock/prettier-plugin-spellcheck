@@ -8,12 +8,16 @@ import {
   mkdirSync,
   existsSync,
   symlinkSync,
+  readdirSync,
+  chmodSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { loadSettings } from "../src/configuration.mjs";
+import { vocabularySnapshot, writeCandidates } from "../src/vocabulary.mjs";
 
 const bin = fileURLToPath(new URL("../src/cli.mjs", import.meta.url));
 const packagePath = fileURLToPath(new URL("../", import.meta.url));
@@ -112,6 +116,107 @@ test("collect checks explicitly enabled tagged code fences without suggestions",
   assert.equal(
     read(".spellcheck.txt"),
     "# Review these candidates: remove typos before using this dictionary.\nqzxfenced\n",
+  );
+});
+
+test("refresh excludes old vocabulary aliases, prunes stale words, and preserves retained spelling and comments", (t) => {
+  const { directory, write, read, run } = fixture(t);
+  write(
+    ".spellcheck.txt",
+    "# Reviewed words.\r\nQzxWidget\r\nqzxplain\r\nQzx'word\r\nqzxobsolete\r\n",
+  );
+  chmodSync(join(directory, ".spellcheck.txt"), 0o664);
+  symlinkSync(
+    join(directory, ".spellcheck.txt"),
+    join(directory, "words-alias.txt"),
+  );
+  write("other.txt", "qzxother\n");
+  write(
+    "spellcheck.json",
+    JSON.stringify({
+      dictionaries: ["@cspell/dict-en_us", "./words-alias.txt", "./other.txt"],
+      code: { fences: true, strings: true },
+    }),
+  );
+  write(
+    "example.md",
+    "\uFEFFQzxWidget Qzxplain Qzx\u2019word qzxother qzxnew\n\n```ts\nconst value: string = 'qzxfenced';\n```\n",
+  );
+  const source = read("example.md");
+  const result = run("collect", "*.{md,txt}", "--refresh");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Refreshed/u);
+  assert.equal(
+    read(".spellcheck.txt"),
+    "# Reviewed words.\r\nQzxWidget\r\nqzxplain\r\nQzx'word\r\nqzxfenced\r\nqzxnew\r\n",
+  );
+  assert.equal(read("example.md"), source);
+  assert.equal(read("other.txt"), "qzxother\n");
+  assert.equal(
+    statSync(join(directory, ".spellcheck.txt")).mode & 0o777,
+    0o664,
+  );
+});
+
+test("refresh can prune all words and supports a vocabulary-only dictionary without English fallback", (t) => {
+  const { write, read, run } = fixture(t);
+  write(".spellcheck.txt", "# Reviewed words.\nqzxobsolete\n");
+  write("example.md", "Hello world\n");
+  assert.equal(run("collect", "*.md", "--refresh").status, 0);
+  assert.equal(read(".spellcheck.txt"), "# Reviewed words.\n");
+  write(
+    "spellcheck.json",
+    JSON.stringify({ dictionaries: ["./.spellcheck.txt"] }),
+  );
+  const result = run("collect", "*.md", "--refresh");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(read(".spellcheck.txt"), "# Reviewed words.\nHello\nworld\n");
+});
+
+test("refresh rejects unsafe outputs and failed or wholly disabled scans without changing vocabulary", (t) => {
+  const { directory, write, read, run } = fixture(t);
+  write(".spellcheck.txt", "# Keep this list.\nqzxwidget\n");
+  const original = read(".spellcheck.txt");
+  write("example.md", "---\ntitle: [\n---\n");
+  assert.equal(run("collect", "*.md", "--refresh").status, 1);
+  assert.equal(read(".spellcheck.txt"), original);
+  write("example.md", "helo\n");
+  write("spellcheck.json", JSON.stringify({ enabled: false }));
+  const disabled = run("collect", "*.md", "--refresh");
+  assert.equal(disabled.status, 1);
+  assert.match(disabled.stderr, /No enabled spelling inputs/u);
+  assert.equal(read(".spellcheck.txt"), original);
+  write("spellcheck.json", JSON.stringify({ code: false }));
+  write("example.js", "// qzxwidget\n");
+  assert.equal(run("collect", "*.js", "--refresh").status, 1);
+  assert.equal(read(".spellcheck.txt"), original);
+  assert.equal(
+    run("collect", "*.md", "--refresh", "--output", "missing.txt").status,
+    1,
+  );
+  assert.equal(existsSync(join(directory, "missing.txt")), false);
+  symlinkSync(join(directory, ".spellcheck.txt"), join(directory, "link.txt"));
+  const linked = run("collect", "*.md", "--refresh", "--output", "link.txt");
+  assert.equal(linked.status, 1);
+  assert.match(linked.stderr, /regular file/u);
+  assert.equal(read(".spellcheck.txt"), original);
+});
+
+test("refresh detects concurrent edits and removes its temporary output", (t) => {
+  const { directory, write, read } = fixture(t);
+  write(".spellcheck.txt", "qzxwidget\n");
+  const file = join(directory, ".spellcheck.txt");
+  const snapshot = vocabularySnapshot(file);
+  write(".spellcheck.txt", "# Concurrent edit.\nqzxwidget\n");
+  const original = read(".spellcheck.txt");
+  assert.throws(
+    () => writeCandidates(file, new Set(["qzxnew"]), snapshot),
+    /Vocabulary changed during collection/u,
+  );
+  assert.equal(read(".spellcheck.txt"), original);
+  assert.equal(
+    readdirSync(directory).some((name) => name.endsWith(".tmp")),
+    false,
   );
 });
 

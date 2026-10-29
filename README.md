@@ -32,6 +32,18 @@ Alternatively, register it in your normal Prettier configuration:
 
 Spelling errors fail formatting with line/column locations and suggestions. Prettier has no native spelling-diagnostics interface, so errors are reported as formatter failures, not warnings. Markdown, HTML, and plain-text prose, code comments, and user-facing JSX text are checked by default. MDX is not supported.
 
+Example run:
+
+```sh
+printf '# helo\n' | npx prettier --plugin prettier-plugin-spellcheck --stdin-filepath example.md
+```
+
+Simplified output:
+
+```text
+example.md:1:3 Misspelled word: "helo". Suggestions: hello, helio, halo.
+```
+
 ## Configuration
 
 ### Automatic configuration

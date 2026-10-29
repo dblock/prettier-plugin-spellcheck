@@ -12,16 +12,20 @@ const format = (source, options = {}) =>
   });
 
 test("reports spelling locations and suggestions without changing prose by default", async () => {
-  await assert.rejects(format("# helo\n", { filepath: "example.md" }), (error) => {
-    assert.match(error.message, /example\.md:1:3 Misspelled word: "helo"/u);
-    assert.match(error.message, /Suggestions: hello/u);
-    assert.match(error.message, /this file was not formatted/u);
-    return true;
-  });
+  await assert.rejects(
+    format("# helo\n", { filepath: "example.md" }),
+    (error) => {
+      assert.match(error.message, /example\.md:1:3 Misspelled word: "helo"/u);
+      assert.match(error.message, /Suggestions: hello/u);
+      assert.match(error.message, /this file was not formatted/u);
+      return true;
+    },
+  );
 });
 
 test("autocorrects prose and delegates formatting to Prettier idempotently", async () => {
-  const source = "#  Helo\n\nA mispelled word in [helo](https://wrng.invalid).\n";
+  const source =
+    "#  Helo\n\nA mispelled word in [helo](https://wrng.invalid).\n";
   const options = { spellcheckAutocorrect: true };
   const actual = await format(source, options);
   assert.equal(
@@ -58,8 +62,5 @@ test("skips code, URLs, destinations and HTML", async () => {
 });
 
 test("can disable spelling without disabling ordinary formatting", async () => {
-  assert.equal(
-    await format("#  helo\n", { spellcheck: false }),
-    "# helo\n",
-  );
+  assert.equal(await format("#  helo\n", { spellcheck: false }), "# helo\n");
 });

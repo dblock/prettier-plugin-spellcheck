@@ -5,11 +5,23 @@
   "type": "module",
   "main": "src/index.mjs",
   "exports": "./src/index.mjs",
-  "files": ["src/", "README.md", "CHANGELOG.md", "LICENSE"],
+  "files": [
+    "src/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "scripts": {
+    "lint": "eslint . && markdownlint-cli2 \"**/*.md\" && prettier --check .",
     "test": "node --test"
   },
-  "keywords": ["prettier", "prettier-plugin", "markdown", "spellcheck", "cspell"],
+  "keywords": [
+    "prettier",
+    "prettier-plugin",
+    "markdown",
+    "spellcheck",
+    "cspell"
+  ],
   "author": "Daniel Doubrovkine",
   "license": "MIT",
   "repository": {
@@ -31,6 +43,10 @@
     "markdownlint-rule-spellcheck": "^0.2.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^16.5.0",
+    "markdownlint-cli2": "^0.24.0",
     "prettier": "^3.9.10"
   }
 }

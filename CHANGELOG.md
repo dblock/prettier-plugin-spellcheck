@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (Next)
+
+- Your contribution here.
+
 ## 0.1.0 (2026/10/29)
 
 - Show concise spelling failures without stack traces, preserving word locations, suggestions, and failure exit status.

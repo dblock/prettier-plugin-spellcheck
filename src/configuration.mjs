@@ -30,10 +30,33 @@ export function loadSettings(file) {
   }
   const dictionaries = settings.dictionaries;
   if (
+    dictionaries !== undefined &&
+    (!dictionaries ||
+      typeof dictionaries !== "object" ||
+      Array.isArray(dictionaries) ||
+      !Object.keys(dictionaries).length)
+  ) {
+    throw new Error(
+      "dictionaries must be a nonempty language-to-dictionary map.",
+    );
+  }
+  if (
     dictionaries &&
     typeof dictionaries === "object" &&
     !Array.isArray(dictionaries)
   ) {
+    for (const [language, entries] of Object.entries(dictionaries)) {
+      if (
+        !language.trim() ||
+        !Array.isArray(entries) ||
+        !entries.length ||
+        entries.some((entry) => typeof entry !== "string" || !entry.trim())
+      ) {
+        throw new Error(
+          `dictionaries.${language} must be a nonempty array of dictionary names or .txt paths.`,
+        );
+      }
+    }
     settings.dictionaries = Object.fromEntries(
       Object.entries(dictionaries).map(([language, entries]) => [
         language,

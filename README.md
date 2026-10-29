@@ -70,6 +70,20 @@ Without a spelling configuration, bundled American English is used. An explicit 
 
 Install additional dictionary packages yourself. No dictionary discovery, network requests, CSpell configuration imports, or Hunspell/system dictionaries are used while formatting. Invalid configuration and missing dictionaries are errors.
 
+## Project vocabulary
+
+Collect unknown words, review the candidates to remove actual typos, and add the reviewed dictionary:
+
+```sh
+npx prettier-plugin-spellcheck collect "**/*.md" --output .spellcheck.txt
+# Edit .spellcheck.txt: keep only words you want to accept.
+npx prettier-plugin-spellcheck add ./.spellcheck.txt
+```
+
+`collect` respects `.gitignore`, `.prettierignore`, per-file Prettier configuration, spelling suppression comments, and configured dictionaries. It skips source code and MDX and never changes input files or overwrites an existing candidate file. Collection does not compute suggestions.
+
+Use `--config path/to/spelling.json` to select an explicit spelling configuration; otherwise `collect` uses each file's `spellcheckConfig` setting. `add` defaults to `.spellcheck.json`, preserves existing settings and languages, and avoids duplicate paths. Use `--language es` to add vocabulary under another language. Remember to set `spellcheckConfig` in your Prettier configuration after creating the spelling configuration.
+
 ## Corrections
 
 Set `"spellcheckAutocorrect": true` in your Prettier configuration, then run:

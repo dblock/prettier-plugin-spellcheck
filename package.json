@@ -5,6 +5,9 @@
   "type": "module",
   "main": "src/index.mjs",
   "exports": "./src/index.mjs",
+  "bin": {
+    "prettier-plugin-spellcheck": "./src/cli.mjs"
+  },
   "files": [
     "src/",
     "README.md",

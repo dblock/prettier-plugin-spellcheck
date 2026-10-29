@@ -1,8 +1,7 @@
 import { applyFixes } from "markdownlint";
-import { lint } from "markdownlint/sync";
-import rule from "markdownlint-rule-spellcheck";
 import { parsers as markdownParsers } from "prettier/plugins/markdown";
 import { loadSettings } from "./configuration.mjs";
+import { checkSource } from "./spelling.mjs";
 
 export const options = {
   spellcheckConfig: {
@@ -24,29 +23,12 @@ export const options = {
   },
 };
 
-function check(text, autocorrect, settings) {
-  return lint({
-    strings: { source: text },
-    customRules: [rule],
-    config: {
-      default: false,
-      spellcheck: {
-        ...settings,
-        autocorrect,
-        markdown: { frontMatter: false },
-      },
-    },
-  }).source;
-}
-
 async function preprocess(text, options) {
   let corrected = text;
   if (options.spellcheck) {
-    const errors = check(
-      text,
-      options.spellcheckAutocorrect,
-      loadSettings(options.spellcheckConfig),
-    );
+    const errors = checkSource(text, loadSettings(options.spellcheckConfig), {
+      autocorrect: options.spellcheckAutocorrect,
+    });
     const unresolved = options.spellcheckAutocorrect
       ? errors.filter((error) => !error.fixInfo)
       : errors;

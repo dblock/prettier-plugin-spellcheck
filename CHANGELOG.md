@@ -3,6 +3,7 @@
 ## 0.1.0 (Next)
 
 - Your contribution here.
+- Preserve byte-order marks and CRLF source offsets in spelling diagnostics and corrections.
 - Check YAML front matter string values with nested field selection, source-mapped diagnostics, and type-safe plain-scalar corrections.
 - Remove the markdownlint development linter and use Prettier with this plugin for documentation checks.
 - Replace runtime markdownlint dependencies with Prettier's native Markdown AST and direct CSpell dictionaries, including spelling directives, ignored regions, Unicode and Liquid handling.

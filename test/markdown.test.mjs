@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as prettier from "prettier";
 import * as plugin from "../src/index.mjs";
-import { checkSource, oneEditAway } from "../src/spelling.mjs";
+import {
+  applyCorrections,
+  checkSource,
+  oneEditAway,
+} from "../src/spelling.mjs";
 
 const format = (source, options = {}) =>
   prettier.format(source, {
@@ -31,6 +35,29 @@ test("leaves Liquid contents alone while correcting surrounding prose", async ()
     await prettier.format(source.replaceAll("helo", "hello"), {
       parser: "markdown",
     }),
+  );
+});
+
+test("preserves BOM and CRLF offsets in body and YAML spelling corrections", async () => {
+  const source = "\uFEFF---\r\ntitle: helo\r\n---\r\n\r\nhelo\r\n";
+  const issues = await checkSource(source, {}, { autocorrect: true });
+  assert.deepEqual(
+    issues.map(({ word }) => word),
+    ["helo", "helo"],
+  );
+  for (const issue of issues) {
+    assert.equal(
+      source.slice(issue.offset, issue.offset + issue.length),
+      issue.word,
+    );
+  }
+  assert.equal(
+    applyCorrections(source, issues),
+    source.replaceAll("helo", "hello"),
+  );
+  assert.equal(
+    await format(source, { endOfLine: "crlf" }),
+    source.replaceAll("helo", "hello"),
   );
 });
 

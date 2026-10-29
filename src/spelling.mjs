@@ -248,6 +248,13 @@ export async function checkSource(
   settings = {},
   { autocorrect = false, suggestions = true } = {},
 ) {
+  if (text.startsWith("\uFEFF")) {
+    const issues = await checkSource(text.slice(1), settings, {
+      autocorrect,
+      suggestions,
+    });
+    return issues.map((issue) => ({ ...issue, offset: issue.offset + 1 }));
+  }
   const dictionary = getDictionary(settings);
   const { spans, ignored, comments } = await markdownSpans(
     text,

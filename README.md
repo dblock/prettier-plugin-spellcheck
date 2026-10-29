@@ -9,10 +9,8 @@ Requires Node.js 22.18 or later and Prettier 3.7 or later (3.x).
 ## Installation
 
 ```sh
-npm install --save-dev prettier github:dblock/prettier-plugin-spellcheck
+npm install --save-dev prettier prettier-plugin-spellcheck
 ```
-
-The package is not yet published to npm; install from GitHub for now.
 
 ## Usage
 
@@ -245,9 +243,9 @@ Unicode words, accented letters, apostrophes, and original UTF-16 source coordin
 
 The plugin wraps Prettier's built-in Markdown, HTML, and supported code parsers. Plugins that also replace these parsers are not automatically composable; load order alone does not guarantee both transformations run.
 
-## Contributing and releasing
+## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASING.md](RELEASING.md). Publishing to npm and creating release tags require explicit authorization.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

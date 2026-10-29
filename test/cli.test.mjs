@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import test from "node:test";
 
 const prettierBin = fileURLToPath(
@@ -48,7 +49,10 @@ test("Prettier CLI check reports spelling failures and leaves files untouched", 
   const result = run("--check");
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stderr, /example\.md:1:3 Misspelled word: "helo"/u);
-  assert.doesNotMatch(result.stderr, /^\[error\]\s+at /mu);
+  assert.doesNotMatch(
+    stripVTControlCharacters(result.stderr),
+    /^\[error\]\s+at /mu,
+  );
   assert.equal(readFileSync(file, "utf8"), source);
 });
 
@@ -68,7 +72,7 @@ test("Prettier CLI stdin reports every spelling error without a stack or formatt
   );
   assert.equal(result.status, 2, result.stderr);
   assert.equal(result.stdout, "");
-  const lines = result.stderr.trimEnd().split("\n");
+  const lines = stripVTControlCharacters(result.stderr).trimEnd().split("\n");
   assert.equal(lines.length, 3, result.stderr);
   assert.equal(lines[0], "[error] example.md: Spelling check failed.");
   assert.match(

@@ -79,6 +79,41 @@ test("supports native spelling directives and markdownlint compatibility comment
   );
 });
 
+test("supports directive reasons, rule lists, colon regions, and own-line todo", async () => {
+  const source = [
+    "<!-- markdownlint-disable other,all -- deliberate examples -->",
+    "qzxhidden",
+    "<!-- markdownlint-enable all -- checked again -->",
+    "qzxhidden <!-- spellcheck:disable -- deliberate example -->",
+    "helo",
+    "qzxhidden <!-- spellcheck:todo -- deliberate example -->",
+    "<!-- spellcheck:disable -- deliberate region -->",
+    "qzxhidden",
+    "<!-- spellcheck:enable -->",
+    "helo",
+  ].join("\n");
+  assert.deepEqual(
+    (await checkSource(source)).map(({ word, line }) => ({ word, line })),
+    [
+      { word: "helo", line: 5 },
+      { word: "helo", line: 10 },
+    ],
+  );
+});
+
+test("directives hidden in Liquid and ignored nodes cannot suppress surrounding prose", async () => {
+  for (const source of [
+    "{{\n<!-- spellcheck-disable -->\n}}\n\nhelo\n",
+    "{% assign text = '\n<!-- spellcheck-disable-file -->\n' %}\n\nhelo\n",
+    "<!-- prettier-ignore -->\n\n<!-- spellcheck-disable -->\n\nhelo\n",
+  ]) {
+    assert.deepEqual(
+      (await checkSource(source)).map(({ word }) => word),
+      ["helo"],
+    );
+  }
+});
+
 test("does not check or correct the node following prettier-ignore", async () => {
   const source = "<!-- prettier-ignore -->\n\nhelo   qzxignored\n\nhelo\n";
   const result = await format(source);

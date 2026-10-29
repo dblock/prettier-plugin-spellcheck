@@ -204,57 +204,93 @@ async function markdownSpans(text, frontMatter) {
       cursor = closing + 2;
     }
   }
-  return { spans, ignored, comments };
+  return {
+    spans,
+    ignored,
+    comments,
+    directiveIgnored: [
+      ...code,
+      ...comments.map((comment) => [
+        comment.start,
+        comment.start + comment.text.length,
+      ]),
+    ],
+  };
 }
 
-function suppressions(comments, offsets) {
-  const events = [];
-  const lines = new Set();
-  let fileDisabled = false;
-  for (const comment of comments) {
-    const pattern =
-      comment.syntax === "code"
-        ? /\b(spellcheck)-(disable|enable)(-file|-line|-next-line)?(?:[ \t]+([^\r\n]*?))?[ \t]*$/gmu
-        : /<!--\s*(markdownlint|spellcheck)-(disable|enable)(-file|-line|-next-line)?(?:\s+([\s\S]*?))?\s*-->/gu;
-    for (const match of comment.text.matchAll(pattern)) {
-      const names = (match[4] || "").trim().split(/\s+/u).filter(Boolean);
-      if (
-        names.length &&
-        !names.includes("spellcheck") &&
-        !names.includes("spelling")
-      ) {
-        continue;
-      }
-      const line = position(offsets, comment.start + match.index).line;
-      const disabled = match[2] === "disable";
-      if (match[3] === "-file") {
-        fileDisabled = disabled;
-      } else if (match[3] === "-line" || match[3] === "-next-line") {
-        const target = line + (match[3] === "-next-line" ? 1 : 0);
-        if (disabled) {
-          lines.add(target);
-        } else {
-          lines.delete(target);
+function suppressions(comments, offsets, text, ignored, nativeIgnored) {
+  const scopes = Map.groupBy(comments, (comment) => comment.scope);
+  const checks = [...scopes].map(([scope, scopedComments]) => {
+    const events = [];
+    const lines = new Set();
+    let fileDisabled = false;
+    for (const comment of scopedComments) {
+      const native = comment.syntax === "code";
+      const pattern = native
+        ? /\b(spellcheck)([-:])(disable|enable|todo)(-file|-line|-next-line)?(?:[ \t]+([^\r\n]*?))?[ \t]*$/gmu
+        : /<!--\s*(markdownlint|spellcheck)([-:])(disable|enable|todo)(-file|-line|-next-line)?(?:\s+([\s\S]*?))?\s*-->/gu;
+      for (const match of comment.text.matchAll(pattern)) {
+        const offset = comment.mapping
+          ? comment.mapping[match.index].start
+          : comment.start + match.index;
+        if (
+          overlaps(ignored, offset, offset + 1) ||
+          (native && overlaps(nativeIgnored, offset, offset + 1))
+        ) {
+          continue;
         }
-      } else {
-        events.push({ line, disabled });
+        if (native) ignored.push([offset, offset + match[0].length]);
+        const names = (match[5] || "")
+          .split(/(?:^|\s)--(?:\s|$)/u, 1)[0]
+          .trim()
+          .split(/[,\s]+/u)
+          .filter(Boolean);
+        if (
+          names.length &&
+          !names.some((name) =>
+            ["all", "spellcheck", "spelling"].includes(name),
+          )
+        ) {
+          continue;
+        }
+        const line = position(offsets, offset).line;
+        const disabled = match[3] !== "enable";
+        const prefix = text
+          .slice(offsets[line - 1], offset)
+          .replace(/^[ \t]*(?:\/\/|\/\*+|\*)[ \t]*/u, "");
+        const ownLine =
+          match[3] === "todo" ||
+          (match[2] === ":" && disabled && prefix.trim());
+        if (match[4] === "-file") {
+          fileDisabled = disabled;
+        } else if (
+          ownLine ||
+          match[4] === "-line" ||
+          match[4] === "-next-line"
+        ) {
+          const target = line + (match[4] === "-next-line" ? 1 : 0);
+          if (disabled) lines.add(target);
+          else lines.delete(target);
+        } else {
+          events.push({ line, disabled });
+        }
       }
     }
-  }
-  events.sort((left, right) => left.line - right.line);
-  return (line) => {
-    let disabled = fileDisabled || lines.has(line);
-    if (disabled) {
-      return true;
-    }
-    for (const event of events) {
-      if (event.line > line) {
-        break;
+    events.sort((left, right) => left.line - right.line);
+    return (line, offset) => {
+      if (scope && (offset < scope.start || offset >= scope.end)) {
+        return false;
       }
-      disabled = event.disabled;
-    }
-    return disabled;
-  };
+      if (fileDisabled || lines.has(line)) return true;
+      let disabled = false;
+      for (const event of events) {
+        if (event.line > line) break;
+        disabled = event.disabled;
+      }
+      return disabled;
+    };
+  });
+  return (line, offset) => checks.some((check) => check(line, offset));
 }
 
 export async function checkSource(
@@ -282,8 +318,14 @@ export async function checkSource(
     ? await codeSpans(text, parser, parserOptions, settings.code)
     : await markdownSpans(text, settings.frontMatter);
   const { spans, ignored, comments } = context;
+  const nativeIgnored = [];
   for (const source of context.prose || []) {
+    if (!source.mapping.length) continue;
     const parsed = await markdownSpans(source.text, false);
+    const scope = {
+      start: source.mapping[0].start,
+      end: source.mapping.at(-1).end,
+    };
     for (const span of parsed.spans) {
       spans.push({
         ...span,
@@ -299,11 +341,32 @@ export async function checkSource(
         ]);
     }
     for (const comment of parsed.comments) {
-      comments.push({ ...comment, start: source.mapping[comment.start].start });
+      comments.push({
+        ...comment,
+        start: source.mapping[comment.start].start,
+        mapping: source.mapping.slice(
+          comment.start,
+          comment.start + comment.text.length,
+        ),
+        scope,
+      });
+    }
+    for (const [start, end] of parsed.directiveIgnored) {
+      if (end > start)
+        nativeIgnored.push([
+          source.mapping[start].start,
+          source.mapping[end - 1].end,
+        ]);
     }
   }
   const offsets = lineStarts(text);
-  const suppressed = suppressions(comments, offsets);
+  const suppressed = suppressions(
+    comments,
+    offsets,
+    text,
+    ignored,
+    nativeIgnored,
+  );
   const issues = [];
   for (const span of spans) {
     const raw = span.text ?? text.slice(span.start, span.end);
@@ -324,7 +387,7 @@ export async function checkSource(
       const location = position(offsets, offset);
       if (
         !wordOnly.test(word) ||
-        suppressed(location.line) ||
+        suppressed(location.line, offset) ||
         overlaps(excluded, first, last) ||
         overlaps(ignored, offset, sourceEnd) ||
         /&(?:#x[\da-f]+|#\d+|[a-z][\da-z]+);$/iu.test(raw.slice(0, first)) ||

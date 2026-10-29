@@ -19,7 +19,7 @@ const range = (node) => [
 ];
 const mask = (text) => text.replace(/[^\r\n]/g, " ");
 const machinery =
-  /^(?:eslint\b|eslint-|global\b|globals\b|exported\b|prettier-ignore\b|@(?:ts-|flow\b|noflow\b)|(?:istanbul|c8|v8|jshint|jslint)\b|[#@]\s*source(?:Mapping)?URL=|SPDX-License-Identifier:|spellcheck-(?:disable|enable)\b)/u;
+  /^(?:eslint\b|eslint-|global\b|globals\b|exported\b|prettier-ignore\b|@(?:ts-|flow\b|noflow\b)|(?:istanbul|c8|v8|jshint|jslint)\b|[#@]\s*source(?:Mapping)?URL=|SPDX-License-Identifier:|spellcheck[-:](?:disable|enable|todo)\b)/u;
 const metadataTag =
   /^(?:author|license|preserve|type|typedef|callback|implements|extends|augments|satisfies|this|enum|namespace|memberof|alias|name|module|requires|import|default|defaultValue|inheritDoc)$/iu;
 const parameterTag =

@@ -3,6 +3,7 @@
 ## 0.1.0 (Next)
 
 - Your contribution here.
+- Support suppression reasons, rule lists, colon and todo directives, and isolated documentation scopes without interpreting directives in excluded examples or templates.
 - Recognize typographic apostrophes in project vocabulary and preserve apostrophe style during conservative corrections.
 - Spellcheck JavaScript, TypeScript, Flow, JSX, and TSX prose using Prettier ASTs, with comment autocorrection, optional report-only strings and identifiers, and code vocabulary collection.
 - Load optional `spellcheck.json` automatically, support explicit `spellcheckConfig` paths without a helper, and allow nested inline settings through `defineConfig`.

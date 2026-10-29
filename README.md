@@ -194,6 +194,8 @@ Uses Prettier's public language ASTs and CSpell dictionaries directly. Markdown 
 
 Use `<!-- spellcheck-disable -->` and `<!-- spellcheck-enable -->` to suppress spelling in a region. The `spellcheck-disable-file`, `spellcheck-disable-line`, and `spellcheck-disable-next-line` variants are also supported. Existing `<!-- markdownlint-disable spellcheck -->` comments remain compatible without loading markdownlint.
 
+Directives accept a reason after `--` and optional comma- or space-separated rule names, including `all`. The colon forms `spellcheck:disable` and `spellcheck:enable` are also supported: a standalone disable starts a region, but a trailing colon disable suppresses only its own line. `spellcheck:todo` always suppresses its own line. These forms also work in native code comments. HTML directives inside code documentation stay local to their comment group; directives inside examples, Liquid, and ignored nodes cannot disable surrounding prose.
+
 Prettier's `<!-- prettier-ignore -->` directive skips the next Markdown node for both spelling and formatting. Properly separated top-level `prettier-ignore-start`/`prettier-ignore-end` ranges are skipped too. Ignore-looking text inside code is not treated as a directive.
 
 Unicode words, accented letters, apostrophes, and original UTF-16 source coordinates are supported. Curly apostrophes also try straight-apostrophe dictionary lookup without ignoring vocabulary capitalization; corrections preserve the original apostrophe style. Liquid expressions (`{{ ... }}`) and tags (`{% ... %}`), including multiline forms, are excluded from Markdown spelling checks; surrounding prose is checked. Ordinary formatting remains delegated to Prettier.

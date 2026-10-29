@@ -203,3 +203,37 @@ test("preserves code BOM, Unicode, CRLF offsets, and ordinary formatting", async
   );
   await assert.rejects(check("const = ;"), /Unexpected token/u);
 });
+
+test("native directives accept reasons and colon forms without checking explanation text", async () => {
+  const source = [
+    "// spellcheck:disable -- qzxreason",
+    "// qzxhidden",
+    "// spellcheck:enable -- qzxreason",
+    "// qzxhidden spellcheck:todo -- qzxreason",
+    "// qzxhidden spellcheck:disable -- qzxreason",
+    "// helo spellcheck-enable all -- qzxreason",
+    "// helo",
+  ].join("\n");
+  assert.deepEqual(
+    (await check(source)).map(({ word }) => word),
+    ["helo", "helo"],
+  );
+});
+
+test("documentation directives stay in their comment group and examples cannot control spelling", async () => {
+  const source = [
+    "/** <!-- spellcheck-disable-file -- deliberate example -->",
+    " * qzxhidden",
+    " */",
+    "const value = 1;",
+    "/** helo */",
+    "// ```js",
+    "// // spellcheck-disable -- deliberate example",
+    "// ```",
+    "// helo",
+  ].join("\n");
+  assert.deepEqual(
+    (await check(source)).map(({ word }) => word),
+    ["helo", "helo"],
+  );
+});
